@@ -1,12 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { FaUser, FaEnvelope, FaLock, FaShieldAlt, FaHistory, FaQrcode, FaKey, FaCheckCircle, FaTimesCircle, FaCamera, FaImages } from 'react-icons/fa';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { FaUser, FaEnvelope, FaLock, FaShieldAlt, FaHistory, FaQrcode, FaKey, FaCheckCircle, FaTimesCircle, FaCamera, FaImages, FaCommentAlt, FaBirthdayCake, FaUserTag, FaUserCheck } from 'react-icons/fa';
 import { QRCodeSVG } from 'qrcode.react';
-import { useNavigate, useLocation } from 'react-router-dom'; // Added useLocation
+import { useNavigate, useLocation } from 'react-router-dom';
+import ReactCrop from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 import api from '../utils/api';
 import avatar1 from '../images/avatar1.png';
 import avatar2 from '../images/avatar2.png';
 import avatar3 from '../images/avatar3.png';
 import avatar4 from '../images/avatar4.png';
+import avatar5 from '../images/avatar5.png';
+import avatar6 from '../images/avatar6.png';
+import avatar7 from '../images/avatar7.png';
+import avatar8 from '../images/avatar8.png';
+import avatar9 from '../images/avatar9.png';
+import avatar10 from '../images/avatar10.png';
+import avatar11 from '../images/avatar11.png';
+import avatar12 from '../images/avatar12.png';
 
 // OtpInput component (unchanged)
 const OtpInput = ({ value, onChange, numInputs = 6 }) => {
@@ -30,6 +40,7 @@ const OtpInput = ({ value, onChange, numInputs = 6 }) => {
 
   return (
     <div className="flex space-x-2">
+      <FaCommentAlt />
       {Array.from({ length: numInputs }).map((_, i) => (
         <input
           key={i}
@@ -60,6 +71,10 @@ const Profile = ({ setUser }) => {
     lastLogin: null,
     loginHistory: [],
     profilePhotoUrl: '',
+    birthdate: '',
+    role: '',
+    status: '',
+    verified: false,
   });
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [secretKey, setSecretKey] = useState('');
@@ -71,14 +86,29 @@ const Profile = ({ setUser }) => {
   const [message, setMessage] = useState('');
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState(null);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState(null);
+  const [crop, setCrop] = useState({ unit: 'px', width: 200, height: 200, aspect: 1 / 1 });
+  const [completedCrop, setCompletedCrop] = useState(null);
+  const imgRef = useRef(null);
+  const previewCanvasRef = useRef(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation(); // To detect login redirect
+  const location = useLocation();
 
   const defaultAvatars = [
     { src: avatar1, name: 'avatar1.png' },
     { src: avatar2, name: 'avatar2.png' },
     { src: avatar3, name: 'avatar3.png' },
     { src: avatar4, name: 'avatar4.png' },
+    { src: avatar5, name: 'avatar5.png' },
+    { src: avatar6, name: 'avatar6.png' },
+    { src: avatar7, name: 'avatar7.png' },
+    { src: avatar8, name: 'avatar8.png' },
+    { src: avatar9, name: 'avatar9.png' },
+    { src: avatar10, name: 'avatar10.png' },
+    { src: avatar11, name: 'avatar11.png' },
+    { src: avatar12, name: 'avatar12.png' },
   ];
 
   const fetchProfile = async () => {
@@ -95,54 +125,113 @@ const Profile = ({ setUser }) => {
         currentPassword: '',
         newPassword: '',
         confirmNewPassword: '',
+        birthdate: response.data.birthdate ? new Date(response.data.birthdate).toISOString().split('T')[0] : '',
+        role: response.data.role || 'N/A',
+        status: response.data.status || 'N/A',
+        verified: response.data.verified || false,
       });
       setUser({
         ...response.data,
         profilePhotoUrl: photoUrl,
       });
-      setError(''); // Clear error on success
+      setError('');
     } catch (err) {
       setError(err.response?.data?.message || err.message);
       navigate('/login');
     }
   };
 
-  // Fetch profile data on mount, but only refresh if coming from login success
   useEffect(() => {
-    const isFromLogin = location.state?.fromLogin; // Check if redirected from login
+    const isFromLogin = location.state?.fromLogin;
     fetchProfile().then(() => {
-      if (isFromLogin) {
-        fetchProfile(); // Refresh only on successful login
-      }
+      if (isFromLogin) fetchProfile();
     });
-  }, [location, navigate, setUser]); // Depend on location to catch redirect
+  }, [location, navigate, setUser]);
+
   useEffect(() => {
     const highlight = location.state?.highlight;
-    const searchQuery = location.state?.searchQuery;
-    const section = location.state?.section;
-    if (highlight && searchQuery) {
-      setActiveTab(highlight); // Switch to the highlighted tab
-      // Highlight specific sections (e.g., add a class or style):
-      if (section === 'twoFactor') {
-        // Highlight 2FA text, e.g., in the 2FA div or button
-        // Use a ref or state to apply `bg-yellow-200` to elements containing "2FA"
-      } else if (section === 'passwordManagement') {
-        // Highlight Password Management text or form elements
-      } else if (section === 'avatars') {
-        // Highlight Avatars grid or buttons
-      } else if (section === 'profilePhoto') {
-        // Highlight Profile Photo section or image
-      } else if (section === 'username') {
-        // Highlight Username input
-      } else if (section === 'loginHistory') {
-        // Highlight Login History button or modal content
-      }
-    }
-  }, [location.state, setActiveTab]);
+    if (highlight) setActiveTab(highlight);
+  }, [location.state]);
+
   const getInitials = (name = '') => {
     if (!name) return '??';
     const names = name.split(' ');
     return names.map((n) => n.charAt(0)).join('').toUpperCase().slice(0, 2);
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setImageToCrop(reader.result);
+        setShowCropModal(true);
+        setIsModalOpen(true);
+        setCrop({ unit: 'px', width: 200, height: 200, aspect: 1 / 1 });
+        setCompletedCrop(null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const getCroppedImg = useCallback(async (image, crop) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+    const pixelRatio = window.devicePixelRatio;
+    canvas.width = 200 * pixelRatio;
+    canvas.height = 200 * pixelRatio;
+    const cropX = (crop.x || 0) * scaleX;
+    const cropY = (crop.y || 0) * scaleY;
+    const cropWidth = (crop.width || 200) * scaleX;
+    const cropHeight = (crop.height || 200) * scaleY;
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(image, cropX, cropY, cropWidth, cropHeight, 0, 0, 200 * pixelRatio, 200 * pixelRatio);
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (completedCrop && imgRef.current && previewCanvasRef.current) {
+      const canvas = previewCanvasRef.current;
+      const ctx = canvas.getContext('2d');
+      const image = imgRef.current;
+      const scaleX = image.naturalWidth / image.width;
+      const scaleY = image.naturalHeight / image.height;
+      canvas.width = 200;
+      canvas.height = 200;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(image, (completedCrop.x || 0) * scaleX, (completedCrop.y || 0) * scaleY, (completedCrop.width || 200) * scaleX, (completedCrop.height || 200) * scaleY, 0, 0, 200, 200);
+    }
+  }, [completedCrop]);
+
+  const handleUploadPhoto = async () => {
+    if (!completedCrop || !imgRef.current) return;
+    const croppedBlob = await getCroppedImg(imgRef.current, completedCrop);
+    const formData = new FormData();
+    formData.append('photo', croppedBlob, 'profile-photo.jpg');
+    try {
+      const token = localStorage.getItem('token');
+      const uploadResponse = await api.post('/profile/upload-photo', formData, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+      });
+      const photoUrl = `http://localhost:8080${uploadResponse.data.photoUrl}`;
+      setProfile((prev) => ({ ...prev, profilePhotoUrl: photoUrl }));
+      setUser((prev) => ({ ...prev, profilePhotoUrl: photoUrl }));
+      setMessage('Photo uploaded successfully');
+      setShowCropModal(false);
+      setImageToCrop(null);
+      setCompletedCrop(null);
+      setIsModalOpen(false);
+      clearMessage();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Photo upload failed');
+      clearMessage();
+    }
   };
 
   const handleUpdateProfile = async (e) => {
@@ -152,12 +241,17 @@ const Profile = ({ setUser }) => {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No authentication token found');
-      const payload = { username: profile.username };
+      const payload = {
+        username: profile.username,
+        birthdate: profile.birthdate,
+      };
       await api.put('/profile/update', payload, { headers: { Authorization: `Bearer ${token}` } });
-      await fetchProfile(); // Refetch profile after update
+      await fetchProfile();
       setMessage('Profile updated successfully');
+      clearMessage();
     } catch (err) {
       setError(err.response?.data?.message || 'Update failed');
+      clearMessage();
     }
   };
 
@@ -176,8 +270,10 @@ const Profile = ({ setUser }) => {
       await api.put('/profile/change-password', payload, { headers: { Authorization: `Bearer ${token}` } });
       setProfile((prev) => ({ ...prev, currentPassword: '', newPassword: '', confirmNewPassword: '' }));
       setMessage('Password changed successfully');
+      clearMessage();
     } catch (err) {
       setError(err.response?.data?.message || 'Password change failed');
+      clearMessage();
     }
   };
 
@@ -209,8 +305,10 @@ const Profile = ({ setUser }) => {
       setSecretKey('');
       setShowManualPopup(false);
       setOtp('');
+      clearMessage();
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid 2FA code');
+      clearMessage();
     }
   };
 
@@ -233,35 +331,9 @@ const Profile = ({ setUser }) => {
       setMessage('2FA disabled successfully');
       setDisableOtp('');
       setIsDisabling2FA(false);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Invalid code or failed to disable 2FA');
-    }
-  };
-
-  const clearMessage = () => {
-    setTimeout(() => {
-      setMessage('');
-      setError('');
-    }, 3000);
-  };
-
-  const handleUploadPhoto = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('photo', file);
-    try {
-      const token = localStorage.getItem('token');
-      const uploadResponse = await api.post('/profile/upload-photo', formData, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
-      });
-      const photoUrl = `http://localhost:8080${uploadResponse.data.photoUrl}`;
-      setProfile((prev) => ({ ...prev, profilePhotoUrl: photoUrl }));
-      setUser((prev) => ({ ...prev, profilePhotoUrl: photoUrl }));
-      setMessage('Photo uploaded successfully');
       clearMessage();
     } catch (err) {
-      setError(err.response?.data?.message || 'Photo upload failed');
+      setError(err.response?.data?.message || 'Invalid code or failed to disable 2FA');
       clearMessage();
     }
   };
@@ -288,6 +360,13 @@ const Profile = ({ setUser }) => {
     }
   };
 
+  const clearMessage = () => {
+    setTimeout(() => {
+      setMessage('');
+      setError('');
+    }, 3000);
+  };
+
   const lastLoginInfo = profile.loginHistory.length > 0 ? profile.loginHistory[profile.loginHistory.length - 1] : null;
 
   const TabButton = ({ id, icon, title }) => (
@@ -303,6 +382,17 @@ const Profile = ({ setUser }) => {
     </button>
   );
 
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isModalOpen]);
+
   return (
     <div className="min-h-screen bg-gray-50 p-8 rounded-[10px] border">
       <div className="max-w-6xl mx-auto">
@@ -313,90 +403,168 @@ const Profile = ({ setUser }) => {
           <TabButton id="twoFactor" icon={<FaQrcode className="text-lg" />} title="2FA" />
         </div>
         <div className="bg-white rounded-b-xl rounded-r-xl rounded-l-xl shadow-lg p-8 border border-gray-200">
-          {activeTab === 'profile' && (
-            <div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-6 flex items-center space-x-3">
-                <FaUser className="text-[#0056B3] text-2xl" />
-                <span>Profile Settings</span>
-              </h2>
-              {error && <div className="mb-6 bg-red-100 text-red-700 p-4 rounded-lg shadow-md">{error}</div>}
-              {message && <div className="mb-6 bg-green-100 text-green-700 p-4 rounded-lg shadow-md">{message}</div>}
-              <div className="mb-8">
-                <label className="block text-lg font-semibold text-gray-700 mb-4">Profile Photo</label>
-                <div className="flex items-center space-x-6">
-                  <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 border-2 border-gray-300">
-                    {profile.profilePhotoUrl && (
-                      <img src={profile.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
-                    )}
-                    {!profile.profilePhotoUrl && (
-                      <span
-                        className="w-full h-full flex items-center justify-center text-2xl font-bold text-white"
-                        style={{ backgroundColor: '#0056B3' }}
-                      >
-                        {getInitials(profile.username)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-col space-y-4">
-                    <label
-                      htmlFor="photo-upload"
-                      className="flex items-center space-x-2 px-4 py-2 bg-[#0056B3] text-white rounded-lg hover:bg-[#004499] cursor-pointer transition-all duration-200 shadow-md"
-                    >
-                      <FaCamera className="text-lg" />
-                      <span>Upload Photo</span>
-                    </label>
-                    <input
-                      type="file"
-                      id="photo-upload"
-                      accept="image/*"
-                      onChange={handleUploadPhoto}
-                      className="hidden"
-                      aria-label="Upload profile photo"
-                    />
-                  </div>
-                </div>
-              </div>
-              <form onSubmit={handleUpdateProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6" aria-label="Profile update form">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={profile.username}
-                      onChange={(e) => setProfile({ ...profile, username: e.target.value })}
-                      className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056B3] transition duration-200 shadow-sm"
-                      required
-                      aria-label="Username"
-                    />
-                    <FaUser className="absolute left-3 top-3 text-gray-500" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      value={profile.email}
-                      disabled
-                      className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg bg-gray-200 cursor-not-allowed"
-                      aria-label="Email"
-                    />
-                    <FaEnvelope className="absolute left-3 top-3 text-gray-500" />
-                  </div>
-                </div>
-                <div className="md:col-span-2">
-                  <button
-                    type="submit"
-                    className="w-full bg-[#0056B3] text-white px-6 py-3 rounded-lg hover:bg-[#004499] transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center space-x-2"
-                    aria-label="Update profile"
-                  >
-                    <FaKey className="text-lg" />
-                    <span>Update Profile</span>
-                  </button>
-                </div>
-              </form>
+        {activeTab === 'profile' && (
+  <div className="bg-gradient-to-br from-white to-gray-50 p-6 rounded-xl shadow-lg">
+    <div className="flex items-center justify-between mb-8">
+      <h2 className="text-2xl font-extrabold text-gray-900 flex items-center gap-3">
+        <FaUser className="text-indigo-600 text-xl" />
+        <span>Profile </span>
+      </h2>
+      <div className="text-sm text-gray-500">Last updated: {new Date().toLocaleDateString()}</div>
+    </div>
+
+    {error && (
+      <div className="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-r-lg animate-fade-in">
+        {error}
+      </div>
+    )}
+    {message && (
+      <div className="mb-6 bg-green-50 border-l-4 border-green-500 text-green-700 p-4 rounded-r-lg animate-fade-in">
+        {message}
+      </div>
+    )}
+
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Profile Photo Section */}
+      <div className="lg:col-span-1">
+        <div className="bg-white p-5 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 h-[360px]">
+          <label className="block text-md font-semibold text-gray-800 mb-3">Profile Photo</label>
+          <div className="flex flex-col items-center space-y-4">
+            <div className="w-44 h-44 rounded-full overflow-hidden ring-4 ring-indigo-100 flex items-center justify-center bg-gray-100 transition-transform hover:scale-105 duration-300">
+              {profile.profilePhotoUrl ? (
+                <img src={profile.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span
+                  className="w-full h-full flex items-center justify-center text-3xl font-bold text-white"
+                  style={{ background: 'linear-gradient(135deg, #4F46E5, #7C3AED)' }}
+                >
+                  {getInitials(profile.username)}
+                </span>
+              )}
             </div>
-          )}
+            <br />
+            <label
+              htmlFor="photo-upload"
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md"
+            >
+              <FaCamera />
+              <span>Change Photo</span>
+            </label>
+            <input
+              type="file"
+              id="photo-upload"
+              accept="image/*"
+              onChange={handlePhotoChange}
+              className="hidden"
+              aria-label="Upload profile photo"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Profile Form Section */}
+      <div className="lg:col-span-2">
+        <form onSubmit={handleUpdateProfile} className="bg-white p-5 rounded-lg shadow-md space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="relative group">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+              <div className="flex items-center border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-indigo-500 transition-all duration-200">
+                <FaUser className="ml-3 text-gray-400 group-hover:text-indigo-500" />
+                <input
+                  type="text"
+                  value={profile.username}
+                  onChange={(e) => setProfile({ ...profile, username: e.target.value })}
+                  className="w-full px-3 py-2 border-0 focus:ring-0"
+                  required
+                  aria-label="Username"
+                />
+              </div>
+            </div>
+
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
+                <FaEnvelope className="ml-3 text-gray-400" />
+                <input
+                  type="email"
+                  value={profile.email}
+                  disabled
+                  className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
+                  aria-label="Email"
+                />
+              </div>
+            </div>
+
+            <div className="relative group">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Birthdate</label>
+              <div className="flex items-center border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-indigo-500 transition-all duration-200">
+                <FaBirthdayCake className="ml-3 text-gray-400 group-hover:text-indigo-500" />
+                <input
+                  type="date"
+                  value={profile.birthdate}
+                  onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
+                  className="w-full px-3 py-2 border-0 focus:ring-0"
+                  aria-label="Birthdate"
+                />
+              </div>
+            </div>
+
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+              <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
+                <FaUserTag className="ml-3 text-gray-400" />
+                <input
+                  type="text"
+                  value={profile.role}
+                  disabled
+                  className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
+                  aria-label="Role"
+                />
+              </div>
+            </div>
+
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
+                <FaUserCheck className="ml-3 text-gray-400" />
+                <input
+                  type="text"
+                  value={profile.status}
+                  disabled
+                  className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
+                  aria-label="Status"
+                />
+              </div>
+            </div>
+
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Verification</label>
+              <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
+                <FaCheckCircle className={`ml-3 ${profile.verified ? 'text-green-500' : 'text-gray-400'}`} />
+                <input
+                  type="text"
+                  value={profile.verified ? 'Verified' : 'Not Verified'}
+                  disabled
+                  className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
+                  aria-label="Verification Status"
+                />
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-gradient-to-r from-indigo-700 to-indigo-700 text-white py-3 rounded-lg hover:from-indigo-700 hover:to-indigo-800 transition-all duration-300 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+            aria-label="Update profile"
+          >
+            <FaKey />
+            <span>Save Changes</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+)}
           {activeTab === 'avatars' && (
             <div>
               <h2 className="text-3xl font-bold text-gray-800 mb-6 flex items-center space-x-3">
@@ -707,6 +875,72 @@ const Profile = ({ setUser }) => {
                 >
                   Close
                 </button>
+              </div>
+            </div>
+          )}
+          {showCropModal && (
+            <div
+              className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-[300px] max-w-md w-full bg-black bg-opacity-50 backdrop-blur-md flex items-center justify-center z-50"
+              aria-labelledby="crop-modal"
+            >
+              <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-2xl overflow-y-auto">
+                <h3 id="crop-modal" className="text-2xl font-bold text-gray-800 mb-4">
+                  Edit Profile Photo
+                </h3>
+                <div className="mb-4 flex justify-center">
+                  <ReactCrop
+                    crop={crop}
+                    onChange={(_, percentCrop) => setCrop(percentCrop)}
+                    onComplete={(c) => setCompletedCrop(c)}
+                    aspect={1 / 1}
+                    circularCrop
+                    className="max-w-full"
+                  >
+                    <img
+                      ref={imgRef}
+                      src={imageToCrop}
+                      alt="Image to crop"
+                      style={{ maxHeight: '520px', objectFit: 'contain' }}
+                      onLoad={(e) => {
+                        const { width, height } = e.currentTarget;
+                        const maxCropSize = 200;
+                        const cropSize = Math.min(width, height, maxCropSize);
+                        const centerX = (width - cropSize) / 2;
+                        const centerY = (height - cropSize) / 2;
+                        setCrop({
+                          unit: 'px',
+                          width: cropSize,
+                          height: cropSize,
+                          x: centerX,
+                          y: centerY,
+                          aspect: 1 / 1,
+                        });
+                      }}
+                    />
+                  </ReactCrop>
+                </div>
+                <div className="flex justify-between">
+                  <button
+                    onClick={() => {
+                      setShowCropModal(false);
+                      setImageToCrop(null);
+                      setCompletedCrop(null);
+                      setIsModalOpen(false);
+                    }}
+                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 shadow-md"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUploadPhoto}
+                    disabled={!completedCrop}
+                    className={`px-4 py-2 bg-[#0056B3] text-white rounded-lg hover:bg-[#004499] shadow-md ${
+                      !completedCrop ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    Upload Cropped Photo
+                  </button>
+                </div>
               </div>
             </div>
           )}

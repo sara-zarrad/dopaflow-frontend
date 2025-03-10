@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { FaSearch, FaCog , FaKey } from 'react-icons/fa';
+import { FaSearch, FaCog, FaKey } from 'react-icons/fa';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Contacts from './pages/Contacts';
 import Tasks from './pages/Tasks';
 import Reports from './pages/Reports';
-import ImportExport from './pages/ImportExport';
+import ChatMessenger from './pages/ChatMessenger';
 import Opportunities from './pages/Opportunities';
 import Ticket from './pages/Ticket';
 import Login from './pages/Login';
@@ -18,14 +18,15 @@ import ResetPassword from './pages/ResetPassword';
 import logo from './images/logodopaflow.png';
 import logo2 from './images/logo_simple_dopaflow.png';
 import axios from 'axios';
+import Page404 from './pages/Page404';
 
 // Component to refresh data on mount, only if no error
 const RefreshOnMount = ({ fetchData, hasError }) => {
-  const [hasFetched, setHasFetched] = useState(false); // Track if we've fetched once
+  const [hasFetched, setHasFetched] = useState(false);
 
   useEffect(() => {
-    if (!hasError && !hasFetched) { // Only fetch if no error and not yet fetched
-      fetchData().then(() => setHasFetched(true)).catch(() => setHasFetched(true)); // Mark as fetched even on error
+    if (!hasError && !hasFetched) {
+      fetchData().then(() => setHasFetched(true)).catch(() => setHasFetched(true));
     }
   }, [fetchData, hasError, hasFetched]);
 
@@ -49,7 +50,7 @@ const SearchBar = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation(); // To detect current route for highlighting
+  const location = useLocation();
 
   const searchItems = [
     { label: 'Profile', path: '/profile', tabs: ['profile', 'avatars', 'security', 'twoFactor'] },
@@ -58,10 +59,10 @@ const SearchBar = () => {
     { label: 'Contacts', path: '/contacts' },
     { label: 'Tasks', path: '/tasks' },
     { label: 'Reports', path: '/reports' },
-    { label: 'Import/Export', path: '/import-export' },
+    { label: 'ChatMessenger', path: '/chat' },
     { label: 'Opportunities', path: '/opportunities' },
     { label: 'Support', path: '/tickets' },
-    { label: '2FA', path: '/profile', tab: 'twoFactor', section: 'twoFactor' }, // Core term for 2FA
+    { label: '2FA', path: '/profile', tab: 'twoFactor', section: 'twoFactor' },
     { label: 'Password Management', path: '/profile', tab: 'security', section: 'passwordManagement' },
     { label: 'Avatars', path: '/profile', tab: 'avatars', section: 'avatars' },
     { label: 'Profile Photo', path: '/profile', tab: 'profile', section: 'profilePhoto' },
@@ -82,7 +83,6 @@ const SearchBar = () => {
     const results = searchItems.filter(item => {
       const labels = [
         item.label.toLowerCase(),
-        // Handle synonyms, typos, and related terms for 2FA and other sections
         ...(item.label === '2FA' ? ['twofactor', '2fa', 'google authenticator', 'authenticator app', 'two factor authentication', '2 factor auth', '2fa setup', 'google 2fa', 'auth app'] : []),
         ...(item.label === 'Password Management' ? ['password manager', 'change password', 'password settings', 'pass management'] : []),
         ...(item.label === 'Avatars' ? ['profile picture', 'avatar selection', 'profile image'] : []),
@@ -95,14 +95,14 @@ const SearchBar = () => {
 
     setSearchResults(results.map(result => ({
       ...result,
-      displayLabel: result.label === '2FA' ? '2FA' : result.label, // Show only "2FA" for all 2FA-related searches
+      displayLabel: result.label === '2FA' ? '2FA' : result.label,
     })));
     setIsOpen(true);
   };
 
   const handleSelectResult = (path, tab = null, section = null) => {
     if (path === '/profile' && (tab || section)) {
-      navigate(path, { state: { highlight: tab || section, searchQuery, section } }); // Pass tab/section and query for highlighting
+      navigate(path, { state: { highlight: tab || section, searchQuery, section } });
     } else {
       navigate(path);
     }
@@ -124,7 +124,7 @@ const SearchBar = () => {
             id="default-search"
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
-            onBlur={() => setTimeout(() => setIsOpen(false), 200)} // Close on blur with delay
+            onBlur={() => setTimeout(() => setIsOpen(false), 200)}
             onFocus={() => setIsOpen(true)}
             placeholder="Search DopaFlow..."
             className="block w-full p-4 ps-10 text-sm text-gray-900 border border-black rounded-full bg-white focus:ring-blue-500 focus:border-blue-500 shadow-md transition-all duration-300 ease-in-out"
@@ -145,12 +145,12 @@ const SearchBar = () => {
         </div>
       </form>
       {isOpen && searchResults.length > 0 && (
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-300 z-50 max-h-60 overflow-y-auto">
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-300 z-50 max-h-60 overflow-y-auto animate-fadeIn">
           {searchResults.map((result, index) => (
             <div
               key={index}
               onClick={() => handleSelectResult(result.path, result.tab, result.section)}
-              onMouseDown={(e) => e.preventDefault()} // Prevent blur on click
+              onMouseDown={(e) => e.preventDefault()}
               className="px-5 py-3 hover:bg-gray-100 cursor-pointer text-sm font-semibold text-gray-800 border-b border-gray-200 last:border-b-0 transition-colors duration-300 flex items-center space-x-2"
             >
               <span className="flex-1">
@@ -170,7 +170,7 @@ const SearchBar = () => {
         </div>
       )}
       {isOpen && searchResults.length === 0 && searchQuery.trim() !== '' && (
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-300 z-50 p-3 text-sm font-semibold text-gray-600">
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-300 z-50 p-3 text-sm font-semibold text-gray-600 animate-fadeIn">
           No results found. Try researching.
         </div>
       )}
@@ -209,7 +209,7 @@ const NotificationDropdown = () => {
       await axios.put(`/api/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchNotifications(); // Refresh notifications after marking as read
+      fetchNotifications();
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
     }
@@ -221,13 +221,12 @@ const NotificationDropdown = () => {
       await axios.put('/api/notifications/mark-all-read', {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchNotifications(); // Refresh notifications after marking all as read
+      fetchNotifications();
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);
     }
   };
 
-  // Handle click outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -248,7 +247,7 @@ const NotificationDropdown = () => {
       <button
         id="dropdownNotificationButton"
         data-dropdown-toggle="dropdownNotification"
-        className="relative inline-flex items-center justify-center w-10 h-10 bg-gray-600 rounded-full text-white text-sm font-medium hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500  transition-colors duration-200"
+        className="relative inline-flex items-center justify-center w-10 h-10 bg-gray-600 rounded-full text-white text-sm font-medium hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200"
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
@@ -265,14 +264,14 @@ const NotificationDropdown = () => {
         <div
           id="dropdownNotification"
           ref={dropdownRef}
-          className="z-20 absolute w-30 max-w-sm bg-white divide-y divide-gray-100 rounded-lg shadow-lg border border-gray-200"
+          className="z-20 absolute w-80 max-w-sm bg-white divide-y divide-gray-100 rounded-lg shadow-lg border border-gray-200 animate-fadeIn"
           style={{
-            top: '80px', // Position below the button, with 10px offset
-            left: '1000px', // Shift left by adjusting from center, accounting for marginRight
-            transform: 'none', // Remove transform since we’re using left for positioning
+            top: '80px',
+            left: '1000px',
+            transform: 'none',
+            zIndex: 101,
           }}
-          aria-labelledby="dropdownNotificationButton"
-        >
+          aria-labelledby="dropdownNotificationButton">
           <div className="block px-4 py-3 font-medium text-center text-gray-800 rounded-t-lg bg-gray-100">
             Notifications
           </div>
@@ -285,8 +284,8 @@ const NotificationDropdown = () => {
               >
                 <div className="shrink-0 mr-3 mt-1">
                   <div className={`w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold`}>
-                  <FaCog className="w-6 h-6" aria-hidden="true" />
-                   </div>
+                    <FaCog className="w-6 h-6" aria-hidden="true" />
+                  </div>
                 </div>
                 <div className="w-full ps-3">
                   <div className="text-gray-800 text-sm font-medium mb-1.5">
@@ -324,7 +323,6 @@ const NotificationDropdown = () => {
   );
 };
 
-// Helper function to determine status color based on notification type
 const getStatusColor = (type) => {
   switch (type) {
     case 'PASSWORD_CHANGE':
@@ -338,7 +336,6 @@ const getStatusColor = (type) => {
   }
 };
 
-// Helper function to format timestamp as "a few moments ago", "10 minutes ago", etc.
 const getTimeAgo = (timestamp) => {
   const now = new Date();
   const then = new Date(timestamp);
@@ -357,7 +354,7 @@ const getTimeAgo = (timestamp) => {
 const ProtectedRoute = ({ children, allowedRoles = ['SuperAdmin', 'Admin'], fetchUser }) => {
   const token = localStorage.getItem('token');
   const [user, setUser] = useState(null);
-  const [error, setError] = useState(null); // Track errors locally
+  const [error, setError] = useState(null);
 
   const fetchUserData = async () => {
     if (token) {
@@ -369,12 +366,12 @@ const ProtectedRoute = ({ children, allowedRoles = ['SuperAdmin', 'Admin'], fetc
           ? `http://localhost:8080${response.data.profilePhotoUrl}`
           : '';
         setUser({ ...response.data, profilePhotoUrl: photoUrl });
-        setError(null); // Clear error on success
-        return true; // Indicate success
+        setError(null);
+        return true;
       } catch (error) {
         console.error('Failed to fetch user data in ProtectedRoute:', error);
         setError('Failed to load user data');
-        throw error; // Propagate error to RefreshOnMount
+        throw error;
       }
     }
   };
@@ -403,13 +400,12 @@ function App() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
-  const [error, setError] = useState(null); // App-level error state
-
-  // Load sidebar state from localStorage or default to true (open)
+  const [error, setError] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     const savedState = localStorage.getItem('sidebarOpen');
     return savedState ? JSON.parse(savedState) : true;
   });
+  const dropdownRef = useRef(null);
 
   const fetchUser = async () => {
     try {
@@ -421,7 +417,7 @@ function App() {
         ? `http://localhost:8080${response.data.profilePhotoUrl}`
         : '';
       setUser({ ...response.data, profilePhotoUrl: photoUrl });
-      setError(null); // Clear error on success
+      setError(null);
       return true;
     } catch (error) {
       console.error('Failed to fetch user data:', error);
@@ -447,7 +443,7 @@ function App() {
   const toggleSidebar = () => {
     const newState = !isSidebarOpen;
     setIsSidebarOpen(newState);
-    localStorage.setItem('sidebarOpen', JSON.stringify(newState)); // Save to localStorage
+    localStorage.setItem('sidebarOpen', JSON.stringify(newState));
   };
 
   const navLinks = user ? [
@@ -456,10 +452,25 @@ function App() {
     { to: '/contacts', label: 'Contacts', icon: 'contacts' },
     { to: '/tasks', label: 'Tasks', icon: 'task' },
     { to: '/reports', label: 'Reports', icon: 'analytics' },
-    { to: '/import-export', label: 'Import/Export', icon: 'swap_horiz' },
+    { to: '/chat', label: 'Live chat', icon: 'chat' },
     { to: '/opportunities', label: 'Opportunities', icon: 'trending_up' },
     { to: '/tickets', label: 'Support', icon: 'support' },
   ] : [];
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
 
   return (
     <Router>
@@ -484,6 +495,7 @@ function App() {
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="*" element={<Navigate to="/login" />} />
             </Routes>
           </>
         ) : (
@@ -515,18 +527,26 @@ function App() {
               </div>
               {error && <div className="text-red-600 text-center p-4 mb-4">{error}</div>}
               <div className="flex justify-end items-center mb-8">
-                <div className="relative" style={{ position: 'absolute', top: '20px', right: '30px' }}>
-                  <button onClick={() => setIsDropdownOpen(!isDropdownOpen)} className="flex items-center space-x-2 hover:bg-gray-100 p-2 rounded-lg transition-colors duration-200">
-                    {user?.profilePhotoUrl && (
+                <div className="relative" style={{ position: 'absolute', top: '20px', right: '30px' }} ref={dropdownRef}>
+                  <button
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="flex items-center space-x-2 hover:bg-gray-100 p-2 rounded-lg transition-colors duration-200"
+                    aria-expanded={isDropdownOpen}
+                  >
+                    {user?.profilePhotoUrl ? (
                       <img
                         src={user.profilePhotoUrl}
                         alt="Profile"
                         className="w-10 h-10 rounded-full object-cover"
+                        onLoad={(e) => e.target.classList.add('loaded')}
+                        onError={(e) => {
+                          e.target.src = '';
+                          e.target.classList.add('hidden');
+                        }}
                       />
-                    )}
-                    {!user?.profilePhotoUrl && (
+                    ) : (
                       <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold animate-pulse"
                         style={{ backgroundColor: getRandomColor() }}
                       >
                         {getInitials(user?.username)}
@@ -536,24 +556,16 @@ function App() {
                       <span className="text-sm font-medium text-gray-800 truncate max-w-[100px]">
                         {user ? user.username : 'Loading...'}
                       </span>
+                      <span className="material-icons-round text-gray-500">expand_more</span>
                     </span>
-                    <span className="material-icons-round text-gray-500">expand_more</span>
                   </button>
                   {isDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-40">
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 animate-scaleIn">
                       <div className="p-4 border-b border-gray-100">
                         <div className="flex items-center space-x-2 mb-1">
-                          {!user?.profilePhotoUrl && (
-                            <div
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                              style={{ backgroundColor: getRandomColor() }}
-                            >
-                              {getInitials(user?.username)}
-                            </div>
-                          )}
                           <div>
                             <span className="text-sm font-medium text-gray-800 truncate">{user ? user.username : 'Loading...'}</span>
-                            <span className={`px-2 py-1 ml-5 rounded-full text-xs font-medium ${
+                            <span className={`px-2 py-1 ml-2 rounded-full text-xs font-medium ${
                               user.role === 'SuperAdmin' ? 'bg-purple-100 text-purple-800' :
                               user.role === 'Admin' ? 'bg-blue-100 text-blue-800' :
                               'bg-green-100 text-green-800'
@@ -565,8 +577,22 @@ function App() {
                         <p className="text-xs text-gray-500">{user ? user.email : ''}</p>
                       </div>
                       <div className="p-2">
-                        <NavLink to="/profile" className="block px-4 py-2 text-gray-800 hover:bg-gray-100 rounded-lg transition-colors duration-200">Profile</NavLink>
-                        <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors duration-200">Logout</button>
+                        <NavLink
+                          to="/profile"
+                          onClick={() => setIsDropdownOpen(false)}
+                          className="block px-4 py-2 text-gray-800 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                        >
+                          Profile
+                        </NavLink>
+                        <button
+                          onClick={() => {
+                            handleLogout();
+                            setIsDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors duration-200"
+                        >
+                          Logout
+                        </button>
                       </div>
                     </div>
                   )}
@@ -577,14 +603,19 @@ function App() {
                   <Route path="/verify-email" element={<VerifyEmail />} />
                   <Route path="/profile" element={<ProtectedRoute fetchUser={fetchUser}><Profile setUser={setUser} /></ProtectedRoute>} />
                   <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['SuperAdmin', 'Admin']} fetchUser={fetchUser}><Dashboard /></ProtectedRoute>} />
-                  <Route path="/" element={<Login setIsLoggedIn={setIsLoggedIn} />} />
+                  <Route path="/" element={<ProtectedRoute fetchUser={fetchUser}><Profile setUser={setUser} /></ProtectedRoute>} />
                   <Route path="/users" element={<ProtectedRoute allowedRoles={['SuperAdmin', 'Admin']} fetchUser={fetchUser}><Users /></ProtectedRoute>} />
                   <Route path="/contacts" element={<ProtectedRoute fetchUser={fetchUser}><Contacts /></ProtectedRoute>} />
                   <Route path="/tasks" element={<ProtectedRoute fetchUser={fetchUser}><Tasks /></ProtectedRoute>} />
                   <Route path="/reports" element={<ProtectedRoute fetchUser={fetchUser}><Reports /></ProtectedRoute>} />
-                  <Route path="/import-export" element={<ProtectedRoute fetchUser={fetchUser}><ImportExport /></ProtectedRoute>} />
+                  <Route path="/chat" element={<ProtectedRoute fetchUser={fetchUser}><ChatMessenger /></ProtectedRoute>} />
                   <Route path="/opportunities" element={<ProtectedRoute fetchUser={fetchUser}><Opportunities /></ProtectedRoute>} />
                   <Route path="/tickets" element={<ProtectedRoute fetchUser={fetchUser}><Ticket /></ProtectedRoute>} />
+                  <Route path="/login" element={<Navigate to="/profile" />} />
+                  <Route path="/signup" element={<Navigate to="/profile" />} />
+                  <Route path="/forgot-password" element={<Navigate to="/profile" />} />
+                  <Route path="/reset-password" element={<Navigate to="/profile" />} />
+                  <Route path="*" element={<Page404 isLoggedIn={true} />} />
                 </Routes>
               </div>
             </main>
@@ -594,5 +625,28 @@ function App() {
     </Router>
   );
 }
+
+const styles = `
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-out;
+  }
+  .animate-scaleIn {
+    animation: scaleIn 0.3s ease-out;
+  }
+  .loaded {
+    animation: fadeIn 0.5s ease-out;
+  }
+  .hidden {
+    display: none;
+  }
+`;
 
 export default App;
