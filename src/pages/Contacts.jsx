@@ -73,9 +73,10 @@ const Contacts = () => {
   const [message, setMessage] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
-    name: '', email: '', phone: '', status: '', owner: null, company: '', notes: '', photo: null, photoUrl: '',
+    name: '', email: '', phone: '', status: '', owner: null, company: null, notes: '', photo: null, photoUrl: '',
   });
   const [users, setUsers] = useState([]);
+  const [companies, setCompanies] = useState([]); // New state for companies
   const [selectedContact, setSelectedContact] = useState(null);
   const [editingContactId, setEditingContactId] = useState(null);
   const [currentPage, setCurrentPage] = useState(0);
@@ -196,6 +197,19 @@ const Contacts = () => {
     }
   }, []);
 
+  const fetchCompanies = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/companies/all', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { page: 0, size: 1000, sort: 'name,asc' } // Fetch all companies (adjust size as needed)
+      });
+      setCompanies(response.data.content || []);
+    } catch (err) {
+      setError('Failed to fetch companies');
+    }
+  }, []);
+
   // Effect Hooks
   useEffect(() => {
     fetchContacts();
@@ -203,7 +217,8 @@ const Contacts = () => {
 
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+    fetchCompanies(); // Fetch companies on mount
+  }, [fetchUsers, fetchCompanies]);
 
   useEffect(() => {
     if (message || error) {
@@ -278,7 +293,12 @@ const Contacts = () => {
         photoUrl = uploadRes.data.photoUrl;
       }
 
-      const contactData = { ...formData, photoUrl, owner: formData.owner ? { id: formData.owner.id } : null };
+      const contactData = {
+        ...formData,
+        photoUrl,
+        owner: formData.owner ? { id: formData.owner.id } : null,
+        company: formData.company ? { id: formData.company.id } : null, // Send company as an object with id
+      };
       const response = editingContactId
         ? await axios.put(`/api/contacts/update/${editingContactId}`, contactData, { headers: { Authorization: `Bearer ${token}` } })
         : await axios.post('/api/contacts/add', contactData, { headers: { Authorization: `Bearer ${token}` } });
@@ -370,7 +390,7 @@ const Contacts = () => {
   const resetForm = () => {
     setShowForm(false);
     setEditingContactId(null);
-    setFormData({ name: '', email: '', phone: '', status: '', owner: null, company: '', notes: '', photo: null, photoUrl: '' });
+    setFormData({ name: '', email: '', phone: '', status: '', owner: null, company: null, notes: '', photo: null, photoUrl: '' });
   };
 
   const ownerOptions = [
@@ -400,6 +420,12 @@ const Contacts = () => {
       user,
     })),
   ];
+
+  const companyOptions = companies.map(company => ({
+    value: company.id,
+    label: company.name,
+    company,
+  }));
 
   const handleSelectContact = (contactId) => {
     setSelectedContacts(prev => {
@@ -732,7 +758,6 @@ const Contacts = () => {
           <div
             ref={sidebarRef}
             className="fixed inset-y-0 right-0 w-96 bg-white shadow-2xl p-4 transform transition-all duration-500 ease-in-out translate-x-0 border-l border-gray-200 overflow-y-auto z-[1000] rounded-l-lg"
-            onMouseDown={() => console.log('Sidebar rendered, sidebarRef:', sidebarRef.current)}
           >
             <div className="bg-teal-500 text-white p-4 rounded-t-lg flex justify-between items-center">
               <h2 className="text-2xl font-bold">{selectedContact.name}</h2>
@@ -763,7 +788,7 @@ const Contacts = () => {
                   </div>
                 )}
               </div>
-              <p className="mt-2 text-sm text-gray-500">{selectedContact.company || 'N/A'}</p>
+              <p className="mt-2 text-sm text-gray-500">{selectedContact.company?.name || 'N/A'}</p>
             </div>
             <div className="space-y-4 p-4 text-gray-700">
               {[
@@ -796,6 +821,7 @@ const Contacts = () => {
                   ) : 'Unassigned',
                 },
                 { icon: <FaInfoCircle className="text-teal-500 mr-2" />, label: 'Status', value: selectedContact.status || 'N/A' },
+                { icon: <FaBuilding className="text-teal-500 mr-2" />, label: 'Company', value: selectedContact.company?.name || 'N/A' },
                 {
                   icon: <FaStickyNote className="text-teal-500 mr-2" />,
                   label: 'Notes',
@@ -828,7 +854,10 @@ const Contacts = () => {
             <div className="mt-6 p-4 bg-gray-50 rounded-b-lg flex space-x-4">
               <button
                 onClick={() => {
-                  setFormData(selectedContact);
+                  setFormData({
+                    ...selectedContact,
+                    company: selectedContact.company ? { id: selectedContact.company.id, name: selectedContact.company.name } : null,
+                  });
                   setEditingContactId(selectedContact.id);
                   setShowForm(true);
                 }}
@@ -1072,12 +1101,39 @@ const Contacts = () => {
                 {/* Company Field */}
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-gray-700">Company</label>
-                  <input
-                    type="text"
-                    value={formData.company}
-                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-                    placeholder="Enter company name"
+                  <Select
+                    options={companyOptions}
+                    value={formData.company ? companyOptions.find(opt => opt.value === formData.company.id) : null}
+                    onChange={(opt) => setFormData({ ...formData, company: opt?.company || null })}
+                    placeholder="Select a company"
+                    className="w-full text-sm"
+                    classNamePrefix="react-select"
+                    styles={{
+                      control: (provided) => ({
+                        ...provided,
+                        borderColor: '#D1D5DB',
+                        borderRadius: '0.375rem',
+                        padding: '0.125rem',
+                        boxShadow: 'none',
+                        backgroundColor: '#F9FAFB',
+                        fontSize: '0.875rem',
+                        '&:hover': { borderColor: '#9CA3AF' },
+                        '&:focus': { borderColor: '#2563EB', boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.2)' },
+                      }),
+                      placeholder: (provided) => ({
+                        ...provided,
+                        color: '#9CA3AF',
+                        fontSize: '0.875rem',
+                      }),
+                      option: (provided, state) => ({
+                        ...provided,
+                        backgroundColor: state.isFocused ? '#EFF6FF' : '#F9FAFB',
+                        color: '#1F2937',
+                        fontSize: '0.875rem',
+                        '&:hover': { backgroundColor: '#DBEAFE' },
+                      }),
+                    }}
+                    isClearable
                   />
                 </div>
 
