@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  FaPlus, FaSearch, FaFilter, FaTrash, FaEdit, FaDownload,
+  FaPlus, FaGlobe, FaSearch, FaFilter, FaTrash, FaEdit, FaDownload,
   FaSpinner, FaUser, FaEnvelope, FaPhone, FaBuilding, FaStickyNote,
-  FaUndo, FaUpload, FaClock, FaCalendarAlt, FaInfoCircle, FaTimes
+  FaUndo, FaUpload, FaTimes
 } from 'react-icons/fa';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -52,39 +52,34 @@ const customStyles = `
   .custom-checkbox:hover {
     border-color: #006400;
   }
+  .card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  }
 `;
 
-// Debounce utility
-const debounce = (func, delay) => {
-  let timeoutId;
-  return (...args) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => func(...args), delay);
-  };
-};
-
 // Main Component
-const Contacts = () => {
+const Companies = () => {
   // State
-  const [contacts, setContacts] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
-    name: '', email: '', phone: '', status: '', owner: null, company: '', notes: '', photo: null, photoUrl: '',
+    name: '', email: '', phone: '', status: '', owner: null, address: '', website: '', industry: '', notes: '', photo: null
   });
   const [users, setUsers] = useState([]);
-  const [selectedContact, setSelectedContact] = useState(null);
-  const [editingContactId, setEditingContactId] = useState(null);
+  const [selectedCompany, setSelectedCompany] = useState(null);
+  const [editingCompanyId, setEditingCompanyId] = useState(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [pageSize] = useState(25);
-  const [sortColumn, setSortColumn] = useState('createdAt');
-  const [sortDirection, setSortDirection] = useState('desc');
+  const [sortColumn, setSortColumn] = useState('name'); // Changed from 'createdAt' to 'name'
+  const [sortDirection, setSortDirection] = useState('asc'); // Changed to 'asc' for alphabetical order
   const [filters, setFilters] = useState({
-    status: '', startDate: '', endDate: '', owner: 'all',
+    status: '', owner: 'all',
   });
   const [activeTab, setActiveTab] = useState('all');
   const sidebarRef = useRef(null);
@@ -93,14 +88,9 @@ const Contacts = () => {
   const [importType, setImportType] = useState('csv');
   const [exportType, setExportType] = useState('csv');
   const [showExportModal, setShowExportModal] = useState(false);
-  const [totalContacts, setTotalContacts] = useState(0);
-  const [selectedContacts, setSelectedContacts] = useState(new Set());
+  const [totalCompanies, setTotalCompanies] = useState(0);
+  const [selectedCompanies, setSelectedCompanies] = useState(new Set());
   const navigate = useNavigate();
-
-  // Debounced setSelectedContact
-  const debouncedSetSelectedContact = debounce((contact) => {
-    setSelectedContact(contact);
-  }, 200);
 
   // Fetch Functions
   const getBaseParams = useCallback(() => ({
@@ -109,38 +99,34 @@ const Contacts = () => {
     sort: `${sortColumn},${sortDirection}`,
   }), [currentPage, pageSize, sortColumn, sortDirection]);
 
-  const fetchAllContacts = useCallback(async (token, params) => {
-    console.log('Fetching all contacts:', params);
-    const response = await axios.get('/api/contacts/all', {
+  const fetchAllCompanies = useCallback(async (token, params) => {
+    const response = await axios.get('/api/companies/all', {
       headers: { Authorization: `Bearer ${token}` },
       params
     });
     return response.data;
   }, []);
 
-  const fetchSearchContacts = useCallback(async (token, params) => {
-    console.log('Searching contacts:', params);
-    const response = await axios.get('/api/contacts/search', {
+  const fetchSearchCompanies = useCallback(async (token, params) => {
+    const response = await axios.get('/api/companies/search', {
       headers: { Authorization: `Bearer ${token}` },
       params
     });
     return response.data;
   }, []);
 
-  const fetchFilteredContacts = useCallback(async (token, params) => {
-    console.log('Filtering contacts with params:', params);
-    const response = await axios.get('/api/contacts/filter', {
+  const fetchFilteredCompanies = useCallback(async (token, params) => {
+    const response = await axios.get('/api/companies/filter', {
       headers: { Authorization: `Bearer ${token}` },
       params
     });
     return response.data;
   }, []);
 
-  const fetchContacts = useCallback(async () => {
+  const fetchCompanies = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      console.log('Fetching contacts with token:', token ? 'Present' : 'Missing');
       if (!token) throw new Error('No token found');
 
       const baseParams = getBaseParams();
@@ -148,43 +134,39 @@ const Contacts = () => {
 
       switch (activeTab) {
         case 'all':
-          data = await fetchAllContacts(token, baseParams);
+          data = await fetchAllCompanies(token, baseParams);
           break;
         case 'search':
           if (!searchQuery.trim()) {
-            data = await fetchAllContacts(token, baseParams);
+            data = await fetchAllCompanies(token, baseParams);
           } else {
             const searchParams = { ...baseParams, query: searchQuery.trim() };
-            data = await fetchSearchContacts(token, searchParams);
+            data = await fetchSearchCompanies(token, searchParams);
           }
           break;
         case 'filter':
           const filterParams = { ...baseParams };
-          if (filters.status === 'Open' || filters.status === 'Closed') filterParams.status = filters.status;
-          if (filters.startDate?.trim()) filterParams.startDate = filters.startDate;
-          if (filters.endDate?.trim()) filterParams.endDate = filters.endDate;
+          if (filters.status === 'Active' || filters.status === 'Inactive') filterParams.status = filters.status;
           if (filters.owner === 'unassigned') filterParams.unassignedOnly = true;
           else if (filters.owner !== 'all' && filters.owner?.id) filterParams.ownerId = filters.owner.id;
-          data = await fetchFilteredContacts(token, filterParams);
+          data = await fetchFilteredCompanies(token, filterParams);
           break;
         default:
           throw new Error('Invalid activeTab value');
       }
 
-      console.log('Response received:', data);
-      setContacts(data.content || []);
+      setCompanies(data.content || []);
       setTotalPages(data.totalPages || 1);
-      setTotalContacts(data.totalElements || data.content.length || 0);
-      setSelectedContacts(new Set());
+      setTotalCompanies(data.totalElements || data.content.length || 0);
+      setSelectedCompanies(new Set());
       setError(null);
     } catch (err) {
-      console.error('Fetch error:', err.response ? err.response.data : err.message);
-      setError(err.response?.status === 401 ? 'Unauthorized. Please log in.' : 'Failed to fetch contacts: ' + (err.response?.data?.error || err.message));
+      setError(err.response?.status === 401 ? 'Unauthorized. Please log in.' : 'Failed to fetch companies: ' + (err.response?.data?.error || err.message));
       if (err.response?.status === 401) navigate('/login');
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchQuery, filters, getBaseParams, navigate, fetchAllContacts, fetchSearchContacts, fetchFilteredContacts]);
+  }, [activeTab, searchQuery, filters, getBaseParams, navigate, fetchAllCompanies, fetchSearchCompanies, fetchFilteredCompanies]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -198,8 +180,8 @@ const Contacts = () => {
 
   // Effect Hooks
   useEffect(() => {
-    fetchContacts();
-  }, [fetchContacts]);
+    fetchCompanies();
+  }, [fetchCompanies]);
 
   useEffect(() => {
     fetchUsers();
@@ -217,24 +199,19 @@ const Contacts = () => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      try {
-        if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
-          setSelectedContact(null);
-        }
-      } catch (err) {
-        console.error('Error in handleClickOutside:', err);
-        setError('An error occurred while handling the sidebar. Please try again.');
+      if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+        setSelectedCompany(null);
       }
     };
 
-    if (selectedContact && sidebarRef.current) {
+    if (selectedCompany) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [selectedContact]);
+  }, [selectedCompany]);
 
   // Handlers
   const handleSearchChange = (e) => {
@@ -253,8 +230,6 @@ const Contacts = () => {
   const handleResetFilters = () => {
     setFilters({
       status: '',
-      startDate: '',
-      endDate: '',
       owner: 'all',
     });
     setActiveTab('all');
@@ -271,41 +246,41 @@ const Contacts = () => {
       if (formData.photo) {
         const photoData = new FormData();
         photoData.append('file', formData.photo);
-        photoData.append('contactId', editingContactId || 0);
-        const uploadRes = await axios.post(`/api/contacts/${editingContactId || 0}/uploadPhoto`, photoData, {
+        photoData.append('companyId', editingCompanyId || 0);
+        const uploadRes = await axios.post(`/api/companies/${editingCompanyId || 0}/uploadPhoto`, photoData, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
         });
         photoUrl = uploadRes.data.photoUrl;
       }
 
-      const contactData = { ...formData, photoUrl, owner: formData.owner ? { id: formData.owner.id } : null };
-      const response = editingContactId
-        ? await axios.put(`/api/contacts/update/${editingContactId}`, contactData, { headers: { Authorization: `Bearer ${token}` } })
-        : await axios.post('/api/contacts/add', contactData, { headers: { Authorization: `Bearer ${token}` } });
+      const companyData = { ...formData, photoUrl, owner: formData.owner ? { id: formData.owner.id } : null };
+      const response = editingCompanyId
+        ? await axios.put(`/api/companies/update/${editingCompanyId}`, companyData, { headers: { Authorization: `Bearer ${token}` } })
+        : await axios.post('/api/companies/add', companyData, { headers: { Authorization: `Bearer ${token}` } });
 
-      setContacts((prev) => editingContactId ? prev.map(c => c.id === editingContactId ? response.data : c) : [response.data, ...prev]);
-      setMessage(editingContactId ? 'Contact updated!' : 'Contact added!');
+      setCompanies((prev) => editingCompanyId ? prev.map(c => c.id === editingCompanyId ? response.data : c) : [response.data, ...prev]);
+      setMessage(editingCompanyId ? 'Company updated!' : 'Company added!');
       resetForm();
-      fetchContacts();
+      fetchCompanies();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save contact');
+      setError(err.response?.data?.error || 'Failed to save company');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this contact?')) return;
+    if (!window.confirm('Delete this company?')) return;
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`/api/contacts/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-      setContacts((prev) => prev.filter(c => c.id !== id));
-      setMessage('Contact deleted!');
-      setSelectedContact(null);
-      fetchContacts();
+      await axios.delete(`/api/companies/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setCompanies((prev) => prev.filter(c => c.id !== id));
+      setMessage('Company deleted!');
+      setSelectedCompany(null);
+      fetchCompanies();
     } catch (err) {
-      setError('Failed to delete contact');
+      setError('Failed to delete company');
     } finally {
       setLoading(false);
     }
@@ -325,16 +300,16 @@ const Contacts = () => {
       formData.append('file', importFile);
       formData.append('type', importType);
 
-      const response = await axios.post('/api/contacts/import', formData, {
+      const response = await axios.post('/api/companies/import', formData, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
       });
 
       setMessage(response.data.message);
       setShowImportModal(false);
       setImportFile(null);
-      fetchContacts();
+      fetchCompanies();
     } catch (err) {
-      setError('Failed to import contacts: ' + (err.response?.data?.error || err.message));
+      setError('Failed to import companies: ' + (err.response?.data?.error || err.message));
     } finally {
       setLoading(false);
     }
@@ -347,8 +322,8 @@ const Contacts = () => {
   const confirmExport = async () => {
     try {
       const token = localStorage.getItem('token');
-      const columns = 'name,email,phone,status,createdAt,owner,company';
-      const response = await axios.get('/api/contacts/export', {
+      const columns = 'name,email,phone,status,address,website,industry,notes,photoUrl,owner';
+      const response = await axios.get('/api/companies/export', {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob',
         params: { columns, type: exportType },
@@ -356,21 +331,21 @@ const Contacts = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.download = `contacts.${exportType === 'csv' ? 'csv' : 'xlsx'}`;
+      link.download = `companies.${exportType === 'csv' ? 'csv' : 'xlsx'}`;
       link.click();
       window.URL.revokeObjectURL(url);
-      setMessage('Contacts exported successfully!');
+      setMessage('Companies exported successfully!');
       setShowExportModal(false);
     } catch (err) {
-      setError('Failed to export contacts: ' + (err.response?.data?.error || err.message));
+      setError('Failed to export companies: ' + (err.response?.data?.error || err.message));
       setShowExportModal(false);
     }
   };
 
   const resetForm = () => {
     setShowForm(false);
-    setEditingContactId(null);
-    setFormData({ name: '', email: '', phone: '', status: '', owner: null, company: '', notes: '', photo: null, photoUrl: '' });
+    setEditingCompanyId(null);
+    setFormData({ name: '', email: '', phone: '', status: '', owner: null, address: '', website: '', industry: '', notes: '', photo: null });
   };
 
   const ownerOptions = [
@@ -401,13 +376,13 @@ const Contacts = () => {
     })),
   ];
 
-  const handleSelectContact = (contactId) => {
-    setSelectedContacts(prev => {
+  const handleSelectCompany = (companyId) => {
+    setSelectedCompanies(prev => {
       const newSelected = new Set(prev);
-      if (newSelected.has(contactId)) {
-        newSelected.delete(contactId);
+      if (newSelected.has(companyId)) {
+        newSelected.delete(companyId);
       } else {
-        newSelected.add(contactId);
+        newSelected.add(companyId);
       }
       return newSelected;
     });
@@ -415,45 +390,31 @@ const Contacts = () => {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      const allContactIds = new Set(contacts.map(contact => contact.id));
-      setSelectedContacts(allContactIds);
+      const allCompanyIds = new Set(companies.map(company => company.id));
+      setSelectedCompanies(allCompanyIds);
     } else {
-      setSelectedContacts(new Set());
+      setSelectedCompanies(new Set());
     }
   };
 
   const handleDeleteSelected = async () => {
-    if (!selectedContacts.size) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedContacts.size} selected contact(s)?`)) return;
+    if (!selectedCompanies.size) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedCompanies.size} selected company(s)?`)) return;
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      await Promise.all([...selectedContacts].map(id =>
-        axios.delete(`/api/contacts/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+      await Promise.all([...selectedCompanies].map(id =>
+        axios.delete(`/api/companies/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } })
       ));
-      setContacts(prev => prev.filter(c => !selectedContacts.has(c.id)));
-      setMessage(`${selectedContacts.size} contact(s) deleted!`);
-      setSelectedContacts(new Set());
-      setSelectedContact(null);
-      fetchContacts();
+      setCompanies(prev => prev.filter(c => !selectedCompanies.has(c.id)));
+      setMessage(`${selectedCompanies.size} company(s) deleted!`);
+      setSelectedCompanies(new Set());
+      setSelectedCompany(null);
+      fetchCompanies();
     } catch (err) {
-      setError('Failed to delete selected contacts: ' + err.message);
+      setError('Failed to delete selected companies: ' + err.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleCreateOpportunity = () => {
-    if (selectedContacts.size === 1) {
-      const contactId = [...selectedContacts][0];
-      const contact = contacts.find(c => c.id === contactId);
-      if (contact) {
-        console.log('Navigating to Opportunities with contact:', contact);
-        navigate(`/opportunities?assign=true&contactId=${contact.id}`);
-      }
-    } else if (selectedContact) {
-      console.log('Navigating to Opportunities with contact:', selectedContact);
-      navigate(`/opportunities?assign=true&contactId=${selectedContact.id}`);
     }
   };
 
@@ -463,7 +424,7 @@ const Contacts = () => {
       <style>{customStyles}</style>
       <div className="max-w-7xl mx-auto">
         <div className="bg-white shadow-lg rounded-xl p-4 md:p-6 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6 transform transition-all duration-300 hover:shadow-xl">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 whitespace-nowrap">Contacts</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 whitespace-nowrap">Companies</h1>
           <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
             <div className="relative w-full sm:w-64">
               <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -481,7 +442,7 @@ const Contacts = () => {
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
               >
                 <FaPlus className="text-sm" />
-                <span className="whitespace-nowrap">Create Contact</span>
+                <span className="whitespace-nowrap">Create Company</span>
               </button>
               <button
                 onClick={() => setShowImportModal(true)}
@@ -519,30 +480,10 @@ const Contacts = () => {
                   className="w-full sm:w-32 p-2 pl-3 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gradient-to-br from-gray-50 to-white text-gray-800 shadow-sm appearance-none cursor-pointer transition-all duration-200 hover:border-blue-400 pt-4"
                 >
                   <option value="">All</option>
-                  <option value="Open">Open</option>
-                  <option value="Closed">Closed</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
                 </select>
                 <span className="absolute top-[-8px] left-2 bg-white px-1 text-xs text-gray-600 font-semibold">Status</span>
-              </div>
-            </div>
-            <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-4">
-              <div className="relative">
-                <input
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gradient-to-br from-gray-50 to-white text-gray-800 shadow-sm transition-all duration-200 hover:border-blue-400 hover:scale-105 pt-4"
-                />
-                <span className="absolute top-[-8px] left-2 bg-white px-1 text-xs text-gray-600 font-semibold">Start Date</span>
-              </div>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={filters.endDate}
-                  onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gradient-to-br from-gray-50 to-white text-gray-800 shadow-sm transition-all duration-200 hover:border-blue-400 hover:scale-105 pt-4"
-                />
-                <span className="absolute top-[-8px] left-2 bg-white px-1 text-xs text-gray-600 font-semibold">End Date</span>
               </div>
             </div>
             <div className="w-full sm:w-auto transition-all duration-200 hover:scale-105">
@@ -582,162 +523,98 @@ const Contacts = () => {
                 isClearable
               />
             </div>
-            {!loading && totalContacts > 0 && (
+            {!loading && totalCompanies > 0 && (
               <div className="bg-white shadow-md rounded-xl p-2 text-gray-700 text-sm">
-                {totalContacts} {totalContacts === 1 ? 'contact' : 'contacts'} found
+                {totalCompanies} {totalCompanies === 1 ? 'company' : 'companies'} found
               </div>
             )}
           </div>
           <div className="flex flex-wrap gap-4">
             <button
-              id="reset-filters"
-              className="bg-blue-400 text-white px-5 py-2 rounded-lg flex items-center hover:bg-blue-900 focus:ring-4 focus:ring-red-300 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
               onClick={handleResetFilters}
+              className="bg-blue-400 text-white px-5 py-2 rounded-lg flex items-center hover:bg-blue-900 focus:ring-4 focus:ring-red-300 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
             >
               <FaUndo className="mr-2" /> Reset Filters
             </button>
-            {selectedContacts.size > 0 && (
-              <>
-                <button
-                  onClick={handleDeleteSelected}
-                  className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-red-700 transition-colors shadow-md"
-                >
-                  <FaTrash className="mr-2" /> ({selectedContacts.size})
-                </button>
-              </>
-            )}
-            {selectedContacts.size === 1 && (
-              <>
-                <button
-                  onClick={handleCreateOpportunity}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-all duration-300 shadow-md flex items-center justify-center"
-                  disabled={selectedContacts.size !== 1}
-                >
-                  <FaPlus className="mr-2" /> Assign
-                </button>
-              </>
+            {selectedCompanies.size > 0 && (
+              <button
+                onClick={handleDeleteSelected}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-red-700 transition-colors shadow-md"
+              >
+                <FaTrash className="mr-2" /> ({selectedCompanies.size})
+              </button>
             )}
           </div>
         </div>
 
-        <div className="bg-white shadow-lg rounded-xl overflow-hidden transform hover:shadow-xl transition-shadow">
-          {loading && (
-            <div className="p-6 text-center">
+        {/* Companies Card Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {loading ? (
+            <div className="col-span-full text-center p-6">
               <FaSpinner className="animate-spin text-blue-600 text-2xl" />
             </div>
-          )}
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-blue-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-gray-700 font-semibold">
+          ) : (
+            companies.map(company => (
+              <div
+                key={company.id}
+                onClick={() => setSelectedCompany(company)}
+                className="bg-white rounded-xl p-5 shadow-md card-hover transition-all duration-300 cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
                     <input
                       type="checkbox"
                       className="custom-checkbox"
-                      checked={contacts.length > 0 && contacts.every(contact => selectedContacts.has(contact.id))}
-                      onChange={handleSelectAll}
+                      checked={selectedCompanies.has(company.id)}
+                      onChange={() => handleSelectCompany(company.id)}
+                      onClick={e => e.stopPropagation()}
                     />
-                  </th>
-                  {['name', 'email', 'phone', 'owner', 'status', 'createdAt'].map(col => (
-                    <th
-                      key={col}
-                      onClick={() => {
-                        setSortColumn(col);
-                        setSortDirection(sortColumn === col && sortDirection === 'asc' ? 'desc' : 'asc');
-                      }}
-                      className="px-6 py-4 text-left text-gray-700 font-semibold cursor-pointer hover:bg-blue-100 transition-colors"
-                    >
-                      {col.charAt(0).toUpperCase() + col.slice(1)} {sortColumn === col && (sortDirection === 'asc' ? '↑' : '↓')}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {contacts.map(contact => (
-                  <tr
-                    key={contact.id}
-                    className="hover:bg-gray-50 transition-colors"
-                    onClick={() => debouncedSetSelectedContact(contact)}
-                  >
-                    <td className="px-6 py-4">
-                      <input
-                        type="checkbox"
-                        className="custom-checkbox"
-                        checked={selectedContacts.has(contact.id)}
-                        onChange={() => handleSelectContact(contact.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-4">
-                        {contact.photoUrl ? (
-                          <img src={`${axios.defaults.baseURL}${contact.photoUrl}`} alt={contact.name} className="w-10 h-10 rounded-full shadow-md" />
-                        ) : (
-                          <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-md"
-                            style={{ backgroundColor: getRandomColor(), backgroundImage: 'linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.3))' }}
-                          >
-                            {getInitials(contact.name)}
-                          </div>
-                        )}
-                        <span className="text-gray-800">{contact.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-gray-700">{contact.email}</td>
-                    <td className="px-6 py-4 text-gray-700">{contact.phone || 'N/A'}</td>
-                    <td className="px-6 py-4">
-                      {contact.owner ? (
-                        <div className="flex items-center space-x-4">
-                          {contact.owner.profilePhotoUrl ? (
-                            <img src={`${axios.defaults.baseURL}${contact.owner.profilePhotoUrl}`} alt={contact.owner.username} className="w-10 h-10 rounded-full shadow-md" />
-                          ) : (
-                            <div
-                              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-md"
-                              style={{ backgroundColor: getRandomColor(), backgroundImage: 'linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.3))' }}
-                            >
-                              {getInitials(contact.owner.username)}
-                            </div>
-                          )}
-                          <span className="text-gray-700">{contact.owner.username}</span>
-                        </div>
-                      ) : 'Unassigned'}
-                    </td>
-                    <td className="px-6 py-4 text-gray-700">{contact.status || 'N/A'}</td>
-                    <td className="px-6 py-4 text-gray-700">{new Date(contact.createdAt).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="p-4 flex justify-between items-center bg-gray-50 rounded-b-xl">
-            <button
-              onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-              disabled={currentPage === 0}
-              className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition-colors shadow-md"
-            >
-              Previous
-            </button>
-            <span className="text-gray-700">Page {currentPage + 1} of {totalPages}</span>
-            <button
-              onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
-              disabled={currentPage === totalPages - 1}
-              className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition-colors shadow-md"
-            >
-              Next
-            </button>
-          </div>
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shadow-md" style={{ backgroundColor: getRandomColor() }}>
+                      {getInitials(company.name)}
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-800 truncate">{company.name}</h3>
+                  </div>
+                </div>
+                <div className="space-y-2 text-gray-700 text-sm">
+                  <p><FaEnvelope className="inline mr-2 text-teal-500" /> {company.email}</p>
+                  <p><FaPhone className="inline mr-2 text-teal-500" /> {company.phone || 'N/A'}</p>
+                  <p><FaGlobe className="inline mr-2 text-teal-500" /> <a href={`https://${company.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{company.website || 'N/A'}</a></p>
+                  <p><FaBuilding className="inline mr-2 text-teal-500" /> {company.industry || 'N/A'}</p>
+                  <p><FaStickyNote className="inline mr-2 text-teal-500" /> {company.status || 'N/A'}</p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
-        {selectedContact && typeof selectedContact === 'object' && (
+        <div className="mt-6 flex justify-between items-center bg-gray-50 rounded-b-xl p-4">
+          <button
+            onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+            disabled={currentPage === 0}
+            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition-colors shadow-md"
+          >
+            Previous
+          </button>
+          <span className="text-gray-700">Page {currentPage + 1} of {totalPages}</span>
+          <button
+            onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
+            disabled={currentPage === totalPages - 1}
+            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition-colors shadow-md"
+          >
+            Next
+          </button>
+        </div>
+
+        {/* Sidebar */}
+        {selectedCompany && (
           <div
             ref={sidebarRef}
             className="fixed inset-y-0 right-0 w-96 bg-white shadow-2xl p-4 transform transition-all duration-500 ease-in-out translate-x-0 border-l border-gray-200 overflow-y-auto z-[1000] rounded-l-lg"
-            onMouseDown={() => console.log('Sidebar rendered, sidebarRef:', sidebarRef.current)}
           >
             <div className="bg-teal-500 text-white p-4 rounded-t-lg flex justify-between items-center">
-              <h2 className="text-2xl font-bold">{selectedContact.name}</h2>
+              <h2 className="text-2xl font-bold">{selectedCompany.name}</h2>
               <button
-                onClick={() => setSelectedContact(null)}
+                onClick={() => setSelectedCompany(null)}
                 className="text-white hover:text-red-300 transition-colors duration-300 p-2 rounded-full hover:bg-teal-600"
               >
                 <span className="text-2xl font-semibold">✕</span>
@@ -745,10 +622,10 @@ const Contacts = () => {
             </div>
             <div className="flex flex-col items-center p-4">
               <div className="relative">
-                {selectedContact.photoUrl ? (
+                {selectedCompany.photoUrl ? (
                   <img
-                    src={`${axios.defaults.baseURL}${selectedContact.photoUrl}`}
-                    alt={selectedContact.name}
+                    src={`${axios.defaults.baseURL}${selectedCompany.photoUrl}`}
+                    alt={selectedCompany.name}
                     className="w-16 h-16 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
                   />
                 ) : (
@@ -759,25 +636,28 @@ const Contacts = () => {
                       backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.2), rgba(0,0,0,0.1))',
                     }}
                   >
-                    {getInitials(selectedContact.name)}
+                    {getInitials(selectedCompany.name)}
                   </div>
                 )}
               </div>
-              <p className="mt-2 text-sm text-gray-500">{selectedContact.company || 'N/A'}</p>
+              <p className="mt-2 text-sm text-gray-500">{selectedCompany.industry || 'N/A'}</p>
             </div>
             <div className="space-y-4 p-4 text-gray-700">
               {[
-                { icon: <FaEnvelope className="text-teal-500 mr-2" />, label: 'Email', value: selectedContact.email || 'N/A' },
-                { icon: <FaPhone className="text-teal-500 mr-2" />, label: 'Phone', value: selectedContact.phone || 'N/A' },
+                { icon: <FaEnvelope className="text-teal-500 mr-2" />, label: 'Email', value: selectedCompany.email || 'N/A' },
+                { icon: <FaPhone className="text-teal-500 mr-2" />, label: 'Phone', value: selectedCompany.phone || 'N/A' },
+                { icon: <FaGlobe className="text-teal-500 mr-2" />, label: 'Website', value: <a href={`https://${selectedCompany.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{selectedCompany.website || 'N/A'}</a> },
+                { icon: <FaBuilding className="text-teal-500 mr-2" />, label: 'Industry', value: selectedCompany.industry || 'N/A' },
+                { icon: <FaStickyNote className="text-teal-500 mr-2" />, label: 'Address', value: selectedCompany.address || 'N/A' },
                 {
                   icon: <FaUser className="text-teal-500 mr-2" />,
                   label: 'Owner',
-                  value: selectedContact.owner ? (
+                  value: selectedCompany.owner ? (
                     <div className="flex items-center space-x-2">
-                      {selectedContact.owner.profilePhotoUrl ? (
+                      {selectedCompany.owner.profilePhotoUrl ? (
                         <img
-                          src={`${axios.defaults.baseURL}${selectedContact.owner.profilePhotoUrl}`}
-                          alt={selectedContact.owner.username}
+                          src={`${axios.defaults.baseURL}${selectedCompany.owner.profilePhotoUrl}`}
+                          alt={selectedCompany.owner.username}
                           className="w-6 h-6 rounded-full shadow-md"
                         />
                       ) : (
@@ -788,29 +668,19 @@ const Contacts = () => {
                             backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.2), rgba(0,0,0,0.1))',
                           }}
                         >
-                          {getInitials(selectedContact.owner.username)}
+                          {getInitials(selectedCompany.owner.username)}
                         </div>
                       )}
-                      <span className="text-gray-700">{selectedContact.owner.username}</span>
+                      <span className="text-gray-700">{selectedCompany.owner.username}</span>
                     </div>
                   ) : 'Unassigned',
                 },
-                { icon: <FaInfoCircle className="text-teal-500 mr-2" />, label: 'Status', value: selectedContact.status || 'N/A' },
+                { icon: <FaStickyNote className="text-teal-500 mr-2" />, label: 'Status', value: selectedCompany.status || 'N/A' },
                 {
                   icon: <FaStickyNote className="text-teal-500 mr-2" />,
                   label: 'Notes',
-                  value: <p className="whitespace-pre-wrap text-gray-700">{selectedContact.notes || 'N/A'}</p>,
+                  value: <p className="whitespace-pre-wrap text-gray-700">{selectedCompany.notes || 'N/A'}</p>,
                   isNote: true,
-                },
-                {
-                  icon: <FaCalendarAlt className="text-teal-500 mr-2" />,
-                  label: 'Created',
-                  value: new Date(selectedContact.createdAt).toLocaleString(),
-                },
-                {
-                  icon: <FaClock className="text-teal-500 mr-2" />,
-                  label: 'Last Activity',
-                  value: new Date(selectedContact.lastActivity).toLocaleString(),
                 },
               ].map((item, index) => (
                 <div
@@ -828,8 +698,8 @@ const Contacts = () => {
             <div className="mt-6 p-4 bg-gray-50 rounded-b-lg flex space-x-4">
               <button
                 onClick={() => {
-                  setFormData(selectedContact);
-                  setEditingContactId(selectedContact.id);
+                  setFormData({ ...selectedCompany, photo: null });
+                  setEditingCompanyId(selectedCompany.id);
                   setShowForm(true);
                 }}
                 className="flex-1 bg-teal-500 text-white px-4 py-2 rounded-lg hover:bg-teal-600 transition-all duration-300 shadow-md flex items-center justify-center"
@@ -837,16 +707,10 @@ const Contacts = () => {
                 <FaEdit className="mr-2" /> Edit
               </button>
               <button
-                onClick={() => handleDelete(selectedContact.id)}
+                onClick={() => handleDelete(selectedCompany.id)}
                 className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-all duration-300 shadow-md flex items-center justify-center"
               >
                 <FaTrash className="mr-2" /> Delete
-              </button>
-              <button
-                onClick={handleCreateOpportunity}
-                className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-all duration-300 shadow-md flex items-center justify-center"
-              >
-                <FaPlus className="mr-2" /> Assign
               </button>
             </div>
           </div>
@@ -862,7 +726,7 @@ const Contacts = () => {
               >
                 ✕
               </button>
-              <h2 className="text-2xl font-bold mb-6 text-gray-900">Import Contacts</h2>
+              <h2 className="text-2xl font-bold mb-6 text-gray-900">Import Companies</h2>
               <form onSubmit={handleImport} className="space-y-4">
                 <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-4 shadow-sm">
                   <label className="block text-gray-700 font-semibold mb-2">File Type</label>
@@ -883,7 +747,7 @@ const Contacts = () => {
                     onChange={(e) => setImportFile(e.target.files[0])}
                     className="w-full text-gray-800 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition-all duration-200"
                   />
-                  <p className="text-xs text-gray-500 mt-2">Headers: Name, Email, Phone, Status, Company, Notes, Owner</p>
+                  <p className="text-xs text-gray-500 mt-2">Headers: Name, Email, Phone, Status, Address, Website, Industry, Notes, Owner</p>
                 </div>
                 <div className="flex justify-end space-x-4">
                   <button
@@ -917,7 +781,7 @@ const Contacts = () => {
               >
                 ✕
               </button>
-              <h2 className="text-2xl font-bold mb-6 text-gray-900">Export Contacts</h2>
+              <h2 className="text-2xl font-bold mb-6 text-gray-900">Export Companies</h2>
               <div className="space-y-4">
                 <label className="block text-gray-700 font-semibold">Choose Export Format</label>
                 <select
@@ -947,177 +811,157 @@ const Contacts = () => {
           </div>
         )}
 
-        {/* Contact Creation/Edit Form */}
+        {/* Company Creation/Edit Form */}
         {showForm && (
-          <div
-            className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 ${
-              showForm ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            } z-50`}
-          >
-            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg transform transition-all duration-300 scale-95 animate-scaleIn max-h-[80vh] overflow-y-auto">
-              {/* Header */}
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center">
-                  {editingContactId ? (
-                    <>
-                      <FaEdit className="mr-2 text-blue-600" /> Edit Contact
-                    </>
-                  ) : (
-                    <>
-                      <FaPlus className="mr-2 text-blue-600" /> New Contact
-                    </>
-                  )}
-                </h2>
-                <button
-                  onClick={resetForm}
-                  className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
-                >
-                  <FaTimes className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Form Body */}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Name Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Name</label>
+          <div className="fixed inset-0 bg-gray-800 bg-opacity-60 flex items-center justify-center h-screen" style={{ zIndex: 9990 }}>
+            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl relative">
+              <button
+                onClick={resetForm}
+                className="absolute top-4 right-4 text-gray-600 hover:text-red-500 text-2xl font-bold"
+              >
+                ✕
+              </button>
+              <h2 className="text-2xl font-bold mb-6 text-gray-900">
+                {editingCompanyId ? 'Edit Company' : 'Create Company'}
+              </h2>
+              <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-700 mb-1">Name</label>
                   <input
                     type="text"
+                    placeholder="Name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-                    placeholder="Enter contact name"
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
                 </div>
-
-                {/* Email Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Email</label>
+                <div>
+                  <label className="block text-gray-700 mb-1">Email</label>
                   <input
                     type="email"
+                    placeholder="Email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-                    placeholder="Enter email address"
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
                 </div>
-
-                {/* Phone Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Phone</label>
+                <div>
+                  <label className="block text-gray-700 mb-1">Phone</label>
                   <input
                     type="text"
+                    placeholder="Phone"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-                    placeholder="Enter phone number"
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-
-                {/* Status Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Status</label>
+                <div>
+                  <label className="block text-gray-700 mb-1">Status</label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="">Select status</option>
-                    <option value="Open">Open</option>
-                    <option value="Closed">Closed</option>
+                    <option value="">Select Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
                   </select>
                 </div>
-
-                {/* Owner Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Assigned To</label>
+                <div>
+                  <label className="block text-gray-700 mb-1">Owner</label>
                   <Select
                     options={ownerOptions.slice(2)}
                     value={formData.owner ? ownerOptions.find(opt => opt.value === formData.owner.id) : null}
                     onChange={(opt) => setFormData({ ...formData, owner: opt?.user || null })}
-                    placeholder="Select a user"
-                    className="w-full text-sm"
+                    placeholder="Select Owner"
+                    className="w-full"
                     classNamePrefix="react-select"
                     styles={{
                       control: (provided) => ({
                         ...provided,
-                        borderColor: '#D1D5DB',
+                        borderColor: '#d1d5db',
                         borderRadius: '0.375rem',
-                        padding: '0.125rem',
-                        boxShadow: 'none',
-                        backgroundColor: '#F9FAFB',
-                        fontSize: '0.875rem',
-                        '&:hover': { borderColor: '#9CA3AF' },
-                        '&:focus': { borderColor: '#2563EB', boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.2)' },
+                        padding: '0.25rem',
+                        '&:hover': { borderColor: '#9ca3af' },
                       }),
                       placeholder: (provided) => ({
                         ...provided,
-                        color: '#9CA3AF',
-                        fontSize: '0.875rem',
+                        color: '#9ca3af',
                       }),
                       option: (provided, state) => ({
                         ...provided,
-                        backgroundColor: state.isFocused ? '#EFF6FF' : '#F9FAFB',
-                        color: '#1F2937',
-                        fontSize: '0.875rem',
-                        '&:hover': { backgroundColor: '#DBEAFE' },
+                        backgroundColor: state.isFocused ? '#f3f4f6' : 'white',
+                        color: '#374151',
+                        '&:hover': { backgroundColor: '#e5e7eb' },
                       }),
                     }}
                     isClearable
                   />
                 </div>
-
-                {/* Company Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Company</label>
+                <div>
+                  <label className="block text-gray-700 mb-1">Address</label>
                   <input
                     type="text"
-                    value={formData.company}
-                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-                    placeholder="Enter company name"
+                    placeholder="Address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-
-                {/* Notes Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Notes</label>
+                <div>
+                  <label className="block text-gray-700 mb-1">Website</label>
+                  <input
+                    type="text"
+                    placeholder="Website"
+                    value={formData.website}
+                    onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 mb-1">Industry</label>
+                  <input
+                    type="text"
+                    placeholder="Industry"
+                    value={formData.industry}
+                    onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-gray-700 mb-1">Notes</label>
                   <textarea
+                    placeholder="Notes"
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 h-24 text-sm"
-                    placeholder="Add any notes..."
+                    className="w-full p-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-sm"
                   />
                 </div>
-
-                {/* Photo Upload Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Photo</label>
+                <div className="col-span-2">
+                  <label className="block text-gray-700 mb-1">Photo</label>
                   <input
                     type="file"
                     onChange={(e) => setFormData({ ...formData, photo: e.target.files[0] })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
+                    className="w-full p-2 border border-gray-300 rounded-lg"
                   />
                 </div>
-
-                {/* Buttons */}
-                <div className="flex justify-end space-x-3 mt-4">
+                <div className="col-span-2 flex justify-end space-x-4 pt-4">
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-4 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300 text-sm"
+                    className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 text-gray-800 font-semibold transition-colors duration-200"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center text-sm"
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold transition-colors duration-200 flex items-center"
                     disabled={loading}
                   >
                     {loading && <FaSpinner className="animate-spin mr-2" />}
-                    {editingContactId ? 'Update' : 'Add Contact'}
+                    {editingCompanyId ? 'Update' : 'Create'}
                   </button>
                 </div>
               </form>
@@ -1129,4 +973,4 @@ const Contacts = () => {
   );
 };
 
-export default Contacts;
+export default Companies;

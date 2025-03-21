@@ -23,3 +23,134 @@
   .animate-fade-in {
     animation: fade-in 0.4s ease-out;
   }
+  .animate-pulse {
+    animation: pulse 1s infinite;
+  }
+  
+  .animate-bounce {
+    animation: bounce 1s infinite;
+  }
+  
+  .transition-all {
+    transition: all 0.3s ease;
+  }
+  
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  
+  @keyframes bounce {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+  
+  .material-icons-round {
+    font-family: 'Material Icons Round';
+    font-size: 24px;
+  }
+  /* Neon Spinner Loading Styles (Adapted from Uiverse.io) */
+  .neon-spinner {
+    position: fixed;
+    bottom: 50px; /* Matches your desired margin */
+    right: 65px;  /* Matches your desired margin */
+    border-radius: 50%;
+    width: 56px; /* Matches your original w-14 h-14 (~56px in Tailwind) */
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  
+  /* Inner container for the rotating spinner layers */
+  .neon-spinner .spinner-layers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    animation: rotate_3922 1.2s linear infinite;
+    background-color: #9b59b6;
+    background-image: linear-gradient(#9b59b6, #84cdfa, #5ad1cd);
+    border-radius: 50%;
+  }
+  
+  .neon-spinner .spinner-layers span {
+    position: absolute;
+    border-radius: 50%;
+    width: 100%;
+    height: 100%;
+    background-color: #9b59b6;
+    background-image: linear-gradient(#9b59b6, #84cdfa, #5ad1cd);
+  }
+  
+  .neon-spinner .spinner-layers span:nth-of-type(1) {
+    filter: blur(5px);
+  }
+  
+  .neon-spinner .spinner-layers span:nth-of-type(2) {
+    filter: blur(10px);
+  }
+  
+  .neon-spinner .spinner-layers span:nth-of-type(3) {
+    filter: blur(25px);
+  }
+  
+  .neon-spinner .spinner-layers span:nth-of-type(4) {
+    filter: blur(50px);
+  }
+  
+  .neon-spinner .spinner-layers::after {
+    content: "";
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    right: 5px;
+    bottom: 5px;
+    background-color: #fff;
+    border: solid 2px #ffffff;
+    border-radius: 50%;
+    z-index: 10; /* Ensure it stays above the spans */
+  }
+  
+  .neon-spinner img {
+    position: relative;
+    width: 42px; /* Adjusted to fit within the spinner */
+    height: 42px;
+    z-index: 20; /* Ensure the image is on top */
+    animation: none; /* Explicitly prevent the image from rotating */
+  }
+  
+  /* Rotation animation for the spinner layers only */
+  @keyframes rotate_3922 {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  
+  /* Hover and Active States */
+  .neon-spinner:hover .spinner-layers {
+    background-image: linear-gradient(#8e4d9f, #6bbcf5, #4dc9c0); /* Slightly darker neon on hover */
+  }
+  
+  .neon-spinner:hover {
+    transform: scale(1.1); /* Slight scale-up on hover */
+    transition: transform 0.3s ease;
+  }
+  
+  .neon-spinner:active {
+    transform: scale(0.95); /* Slight scale-down on click */
+    transition: transform 0.1s ease;
+  }

@@ -66,3 +66,69 @@
     transform: translateX(0);
   }
 }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.5s ease-out forwards;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Custom styles for dark mode */
+.bg-gray-900 {
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+}
+
+.bg-gray-800 {
+  background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+}
+
+.bg-blue-700 {
+  background: linear-gradient(135deg, #2b6cb0 0%, #4299e1 100%);
+}
+.animate-bounce {
+  animation: bounce 0.6s infinite;
+}

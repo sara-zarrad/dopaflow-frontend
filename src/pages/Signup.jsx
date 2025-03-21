@@ -16,18 +16,49 @@ const Signup = () => {
   const handleSignup = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Basic required field validation
     if (!firstName || !lastName || !email || !birthDate || !password || !confirmPassword) {
       setError('Please fill in all fields.');
       return;
     }
+
+    // Validate username length
+    const username = `${firstName} ${lastName}`;
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters long.');
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    // Validate password match
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
     }
 
+    // Validate birthdate format
+    const birthDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!birthDateRegex.test(birthDate)) {
+      setError('Birth date must be in YYYY-MM-DD format.');
+      return;
+    }
+
     try {
       const response = await api.post('/auth/register', {
-        username: `${firstName} ${lastName}`,
+        username,
         email,
         password,
         role: 'User',
@@ -36,9 +67,17 @@ const Signup = () => {
       if (response.status === 201) {
         alert('Signup successful! Please check your email to verify your account.');
         navigate('/login');
+      } else {
+        // Handle unexpected status codes
+        setError('Unexpected response from server. Please try again.');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Signup failed.');
+      console.error('Signup error:', err.response); // Log the full error for debugging
+      if (err.response && err.response.status === 400) {
+        setError(err.response.data.message || 'Signup failed. Please check your input and try again.');
+      } else {
+        setError('An error occurred while signing up. Please try again later.');
+      }
     }
   };
 

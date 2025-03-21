@@ -137,7 +137,6 @@ const Profile = ({ setUser }) => {
       setError('');
     } catch (err) {
       setError(err.response?.data?.message || err.message);
-      navigate('/login');
     }
   };
 
@@ -323,9 +322,22 @@ const Profile = ({ setUser }) => {
     setMessage('');
     try {
       const token = localStorage.getItem('token');
-      if (!token) throw new Error('No authentication token found');
-      await api.post('/auth/2fa/verify', { code: disableOtp }, { headers: { Authorization: `Bearer ${token}` } });
-      await api.put('/profile/update', { twoFactorEnabled: false }, { headers: { Authorization: `Bearer ${token}` } });
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
+      }
+  
+      // Log the OTP for debugging
+      console.log('Disabling 2FA with OTP:', disableOtp);
+  
+      // Call the new disable endpoint
+      const response = await api.post(
+        '/auth/2fa/disable',
+        { code: disableOtp },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      console.log('Disable 2FA response:', response.data);
+  
+      // Update local state on success
       setProfile((prev) => ({ ...prev, twoFactorEnabled: false }));
       setUser((prev) => ({ ...prev, twoFactorEnabled: false }));
       setMessage('2FA disabled successfully');
@@ -333,7 +345,19 @@ const Profile = ({ setUser }) => {
       setIsDisabling2FA(false);
       clearMessage();
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid code or failed to disable 2FA');
+      console.error('Error disabling 2FA:', err.response?.data || err.message);
+  
+      // Handle specific error cases
+      if (err.response?.status === 401) {
+        setError('Session expired. Please log in again.');
+        navigate('/login');
+      } else if (err.response?.status === 400) {
+        setError(err.response.data.message || 'Invalid 2FA code. Please try again.');
+      } else if (err.response?.status === 500) {
+        setError('Server error. Please try again later.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'Failed to disable 2FA');
+      }
       clearMessage();
     }
   };
@@ -410,7 +434,7 @@ const Profile = ({ setUser }) => {
         <FaUser className="text-indigo-600 text-xl" />
         <span>Profile </span>
       </h2>
-      <div className="text-sm text-gray-500">Last updated: {new Date().toLocaleDateString()}</div>
+
     </div>
 
     {error && (
