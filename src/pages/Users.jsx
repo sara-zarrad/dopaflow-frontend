@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  FaEdit, FaTrash, FaUserPlus, FaSpinner, FaBan, FaUserCheck, FaCheck, 
-  FaTimes, FaSearch, FaUser, FaEnvelope, FaTag, FaCalendarAlt, FaClock
+import {
+  FaEdit, FaTrash, FaUserPlus, FaSpinner, FaBan, FaUserCheck, FaCheck,
+  FaTimes, FaSearch, FaUser, FaEnvelope, FaTag, FaCalendarAlt, FaClock, FaCircle
 } from 'react-icons/fa';
 import axios from 'axios';
 
@@ -32,12 +32,12 @@ const formatLastActive = (lastActive, isOnline) => {
   if (!lastActive) return null; // No text if lastActive is null (never connected)
 
   const now = new Date();
-  const last = new Date(lastActive); // Works with epoch milliseconds
+  const last = new Date(lastActive);
   const diffMs = now - last;
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMins / 60);
 
-  if (diffMins < 1) return { text: '1m', color: '#22c55e' }; // Green for <1h
+  if (diffMins < 1) return { text: 'now', color: '#22c55e' }; // Green for <1h
   if (diffMins < 60) return { text: `${diffMins}m`, color: '#22c55e' }; // Green for <1h
   if (diffHours < 24) return { text: `${diffHours}h`, color: '#6b7280' }; // Gray for 1-24h
   return null; // No text for >24h or never connected
@@ -57,7 +57,7 @@ const formatDate = (date) => {
 const UserProfilePopup = ({ user, show }) => {
   const lastActive = formatLastActive(user.lastActive, user.isOnline);
   return (
-    <div 
+    <div
       className={`absolute top-0 left-1/2 transform -translate-x-1/2 mt-10 bg-white rounded-xl shadow-2xl p-4 w-64 z-[1000] transition-all duration-300 
         ${show ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
       style={{ zIndex: 1000, position: 'absolute' }}
@@ -76,9 +76,9 @@ const UserProfilePopup = ({ user, show }) => {
               </div>
             )}
           </div>
-          <div className="absolute -bottom-1 -right-1 flex items-center">
+          <div className="absolute -bottom-0 -right-0 flex items-center">
             {user.isOnline && (
-              <span 
+              <span
                 className="w-4 h-4 rounded-full border-2 border-white shadow-md transition-all duration-300 bg-green-500"
               ></span>
             )}
@@ -115,8 +115,8 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading 
     <div className="fixed inset-y-0 right-0 w-96 bg-gradient-to-b from-gray-50 to-white rounded-l-3xl shadow-xl p-8 transform transition-all duration-300 z-50 overflow-y-auto">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">User Profile</h2>
-        <button 
-          onClick={onClose} 
+        <button
+          onClick={onClose}
           className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-full transition-all duration-200"
         >
           <FaTimes className="w-6 h-6" />
@@ -137,7 +137,7 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading 
                 </div>
               )}
             </div>
-            <div className="absolute -bottom-2 -right-2 flex items-center">
+            <div className="absolute -bottom-0 -right-0 flex items-center">
               {user.isOnline && (
                 <span
                   className="w-6 h-6 rounded-full border-3 border-white shadow-lg transition-all duration-300 bg-green-500"
@@ -145,7 +145,7 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading 
               )}
               {!user.isOnline && lastActive && (
                 <span
-                  className="ml-2 text-sm font-semibold px-2 py-1 rounded bg-gray-100 text-gray-700 shadow-sm"
+                  className="ml-1 text-sm font-semibold px-2 py-1 rounded bg-gray-100 text-gray-700 shadow-sm"
                   style={{ color: lastActive.color }}
                 >
                   {lastActive.text}
@@ -157,8 +157,8 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading 
             <h3 className="text-2xl font-semibold text-gray-900">{user.username}</h3>
             <div className="flex items-center mt-2 space-x-2">
               <span className={`text-sm ml-5 px-3 py-1 rounded-full font-medium ${
-                user.status === 'Active' 
-                  ? 'bg-green-100 text-green-700' 
+                user.status === 'Active'
+                  ? 'bg-green-100 text-green-700'
                   : 'bg-orange-100 text-orange-700'
               }`}>
                 {user.status}
@@ -199,8 +199,8 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading 
         <button
           onClick={() => onStatusToggle(user.id)}
           className={`w-full py-3 rounded-xl text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 ${
-            user.status === 'Active' 
-              ? 'bg-gradient-to-r from-orange-600 to-yellow-600 hover:from-orange-700 hover:to-yellow-700' 
+            user.status === 'Active'
+              ? 'bg-gradient-to-r from-orange-600 to-yellow-600 hover:from-orange-700 hover:to-yellow-700'
               : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
           }`}
           disabled={loading}
@@ -226,7 +226,7 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading 
 };
 
 // Main Users Component
-const Users = () => {
+const Users = ({ onlineUsers = [] }) => {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -250,102 +250,76 @@ const Users = () => {
 
   useEffect(() => {
     fetchUsers();
-    const token = localStorage.getItem("token");
-  
-    let userId = "1"; // Default fallback ID
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        userId = payload.sub;
-      } catch (e) {
-        console.error("Token parsing error:", e);
-      }
-    }
-  
-    const ws = setupWebSocket(userId);
-  
-    return () => {
-      if (ws) {
-        ws.close();
-      }
-    };
   }, []);
 
-  const setupWebSocket = (userId) => {
-    const ws = new WebSocket(
-      `ws://localhost:8080/ws/user-status?userId=${encodeURIComponent(userId)}`
-    );
-  
-    ws.onopen = () => console.log(`WebSocket connected for userId: ${userId}`);
-  
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log("WebSocket message received:", data);
-  
-      setUsers((prevUsers) =>
-        prevUsers.map((user) =>
-          user.id === data.userId
-            ? { ...user, isOnline: data.activity === "online", lastActive: data.lastActive !== null ? Number(data.lastActive) : null }
-            : user
-        )
-      );
-  
-      setFilteredUsers((prevUsers) =>
-        prevUsers.map((user) =>
-          user.id === data.userId
-            ? { ...user, isOnline: data.activity === "online", lastActive: data.lastActive !== null ? Number(data.lastActive) : null }
-            : user
-        )
-      );
-  
-      setSelectedUser((prev) =>
-        prev && prev.id === data.userId
-          ? { ...prev, isOnline: data.activity === "online", lastActive: data.lastActive !== null ? Number(data.lastActive) : null }
-          : prev
-      );
-    };
-  
-    ws.onclose = () => {
-      console.warn(`WebSocket disconnected for userId: ${userId}, reconnecting...`);
-      setTimeout(() => setupWebSocket(userId), 5000);
-    };
-  
-    ws.onerror = (error) => console.error("WebSocket error:", error);
-  
-    return ws;
-  };
-  
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get("/api/users/all", {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/users/all', {
         headers: {
           Authorization: token ? `Bearer ${token}` : undefined,
         },
       });
-  
+
       const updatedUsers = Array.isArray(response.data)
-        ? response.data.map((user) => ({
-            ...user,
-            profilePhotoUrl: user.profilePhotoUrl ? `http://localhost:8080${user.profilePhotoUrl}` : "",
-            birthdate: user.birthdate ? Number(user.birthdate) : null, // Parse birthdate as milliseconds
-            lastActive: user.lastActive !== null ? Number(user.lastActive) : null // Handle null explicitly
-          }))
+        ? response.data.map((user) => {
+            const onlineUser = onlineUsers.find((ou) => ou.id === user.id) || {};
+            return {
+              ...user,
+              profilePhotoUrl: user.profilePhotoUrl ? `http://localhost:8080${user.profilePhotoUrl}` : '',
+              birthdate: user.birthdate ? Number(user.birthdate) : null,
+              lastActive: onlineUser.lastActive !== undefined ? onlineUser.lastActive : user.lastActive !== null ? Number(user.lastActive) : null,
+              isOnline: onlineUser.isOnline !== undefined ? onlineUser.isOnline : false,
+            };
+          })
         : [];
-  
+
       setUsers(updatedUsers);
       setFilteredUsers(updatedUsers);
       setError(null);
     } catch (error) {
-      console.error("Fetch error:", error);
-      setError(error.response?.data?.message || "Failed to fetch users");
+      console.error('Fetch error:', error);
+      setError(error.response?.data?.message || 'Failed to fetch users');
       setUsers([]);
       setFilteredUsers([]);
     } finally {
       setLoading(false);
     }
   };
+
+  // Sync onlineUsers with users state
+  useEffect(() => {
+    setUsers(prevUsers =>
+      prevUsers.map(user => {
+        const onlineUser = onlineUsers.find(ou => ou.id === user.id) || {};
+        return {
+          ...user,
+          isOnline: onlineUser.isOnline !== undefined ? onlineUser.isOnline : user.isOnline,
+          lastActive: onlineUser.lastActive !== undefined ? onlineUser.lastActive : user.lastActive,
+        };
+      })
+    );
+    setFilteredUsers(prevUsers =>
+      prevUsers.map(user => {
+        const onlineUser = onlineUsers.find(ou => ou.id === user.id) || {};
+        return {
+          ...user,
+          isOnline: onlineUser.isOnline !== undefined ? onlineUser.isOnline : user.isOnline,
+          lastActive: onlineUser.lastActive !== undefined ? onlineUser.lastActive : user.lastActive,
+        };
+      })
+    );
+    setSelectedUser(prev => {
+      if (!prev) return null;
+      const onlineUser = onlineUsers.find(ou => ou.id === prev.id) || {};
+      return {
+        ...prev,
+        isOnline: onlineUser.isOnline !== undefined ? onlineUser.isOnline : prev.isOnline,
+        lastActive: onlineUser.lastActive !== undefined ? onlineUser.lastActive : prev.lastActive,
+      };
+    });
+  }, [onlineUsers]);
 
   const handleSearch = (query) => {
     setSearchQuery(query);
@@ -430,9 +404,9 @@ const Users = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const data = { 
+      const data = {
         ...formData,
-        birthdate: formData.birthdate ? new Date(formData.birthdate).getTime() : null // Convert birthdate to milliseconds
+        birthdate: formData.birthdate ? new Date(formData.birthdate).getTime() : null,
       };
       if (!editingUser) {
         const response = await axios.post('/api/users/create', data, {
@@ -443,12 +417,12 @@ const Users = () => {
         const photoUrl = response.data.profilePhotoUrl
           ? `http://localhost:8080${response.data.profilePhotoUrl}`
           : '';
-        const newUser = { 
-          ...response.data, 
-          profilePhotoUrl: photoUrl, 
-          isOnline: false, 
+        const newUser = {
+          ...response.data,
+          profilePhotoUrl: photoUrl,
+          isOnline: false,
           lastActive: response.data.lastActive !== null ? Number(response.data.lastActive) : null,
-          birthdate: response.data.birthdate ? Number(response.data.birthdate) : null
+          birthdate: response.data.birthdate ? Number(response.data.birthdate) : null,
         };
         setUsers([...users, newUser]);
         setFilteredUsers([...filteredUsers, newUser].filter((user) =>
@@ -465,12 +439,12 @@ const Users = () => {
         const photoUrl = response.data.profilePhotoUrl
           ? `http://localhost:8080${response.data.profilePhotoUrl}`
           : '';
-        const updatedUser = { 
-          ...response.data, 
-          profilePhotoUrl: photoUrl, 
-          isOnline: editingUser.isOnline, 
+        const updatedUser = {
+          ...response.data,
+          profilePhotoUrl: photoUrl,
+          isOnline: editingUser.isOnline,
           lastActive: response.data.lastActive !== null ? Number(response.data.lastActive) : null,
-          birthdate: response.data.birthdate ? Number(response.data.birthdate) : null
+          birthdate: response.data.birthdate ? Number(response.data.birthdate) : null,
         };
         const updatedUsers = users.map((user) =>
           user.id === editingUser.id ? updatedUser : user
@@ -569,8 +543,8 @@ const Users = () => {
             <FaTimes className="text-2xl mr-3" />
             <span className="text-lg">{error}</span>
           </div>
-          <button 
-            onClick={() => setError(null)} 
+          <button
+            onClick={() => setError(null)}
             className="p-2 text-red-700 hover:text-red-900 rounded-full hover:bg-red-200 transition-colors duration-200"
           >
             <FaTimes className="w-5 h-5" />
@@ -584,8 +558,8 @@ const Users = () => {
             <FaCheck className="text-2xl mr-3" />
             <span className="text-lg">{message}</span>
           </div>
-          <button 
-            onClick={() => setMessage(null)} 
+          <button
+            onClick={() => setMessage(null)}
             className="p-2 text-green-700 hover:text-green-900 rounded-full hover:bg-green-200 transition-colors duration-200"
           >
             <FaTimes className="w-5 h-5" />
@@ -593,11 +567,22 @@ const Users = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden max-w-7xl mx-auto" style={{ overflow: 'visible' }}>
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
-          <span className="text-lg font-semibold text-gray-700">
-            Online Users: <span className="text-green-600">{onlineUsersCount}</span> / {filteredUsers.length}
-          </span>
+      <div
+        className="bg-white rounded-t-2xl shadow-md overflow-hidden max-w-7xl mx-auto"
+        style={{ overflow: 'visible', fontFamily: "'Inter', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}
+      >
+        <div className="p-4 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <FaUser className="text-gray-600 text-lg" />
+            <div className="flex items-center space-x-1">
+              <FaCircle className="text-green-500 text-xs" />
+            </div>
+            <span className="text-lg font-semibold text-gray-800">
+              Online Users:{' '}
+              <span className="text-green-600">{onlineUsersCount}</span>{' '}
+              <span className="text-gray-500">/ {filteredUsers.length}</span>
+            </span>
+          </div>
         </div>
 
         {loading && (
@@ -646,7 +631,7 @@ const Users = () => {
                             </div>
                           )}
                         </div>
-                        <div className="absolute -bottom-1 -right-1 flex items-center">
+                        <div className="absolute -bottom-0 -right-0 flex items-center">
                           {user.isOnline && (
                             <span
                               className="w-4 h-4 rounded-full border-2 border-white shadow-md transition-all duration-300 bg-green-500"
@@ -723,8 +708,8 @@ const Users = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg transform transition-all duration-300 scale-95 animate-scaleIn">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-fit transform transition-all duration-300 scale-95 animate-scaleIn">
+            <h2 className="text-xl font-bold mb-6 text-gray-800 flex items-center">
               {editingUser ? <><FaEdit className="mr-2 text-blue-600" /> Edit User</> : <><FaUserPlus className="mr-2 text-blue-600" /> Create New User</>}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">

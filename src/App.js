@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
-import { FaSearch, FaCog, FaKey, FaShieldAlt, FaBell, FaBuilding } from 'react-icons/fa'; // Added FaBuilding
+import { FaSearch, FaCog, FaKey, FaShieldAlt, FaBell, FaChevronRight } from 'react-icons/fa';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Contacts from './pages/Contacts';
@@ -19,9 +19,9 @@ import logo2 from './images/logo_simple_dopaflow.png';
 import aiIcon from './images/ai-icon.png';
 import axios from 'axios';
 import Page404 from './pages/Page404';
-import { AIChat } from './AIService'; // Import AIChat from AIService.js
+import { AIChat } from './AIService';
+import SidebarIcon from './images/sidebar.png';
 import Companies from './pages/Companies';
-
 // Utility Components
 const RefreshOnMount = ({ fetchData, hasError }) => {
   const [hasFetched, setHasFetched] = useState(false);
@@ -179,11 +179,70 @@ const SearchBar = ({ setIsAIChatOpen, setInitialChatMessage }) => {
   );
 };
 
+// Notification Dropdown Component
+const NotificationType = {
+  PASSWORD_CHANGE: "PASSWORD_CHANGE",
+  TWO_FA_ENABLED: "TWO_FA_ENABLED",
+  TWO_FA_DISABLED: "TWO_FA_DISABLED",
+  USER_CREATED: "USER_CREATED",
+  USER_DELETED: "USER_DELETED",
+  CONTACT_CREATED: "CONTACT_CREATED",
+  TASK_ASSIGNED: "TASK_ASSIGNED",
+  MESSAGE_RECEIVED: "MESSAGE_RECEIVED",
+  TICKET_OPENED: "TICKET_OPENED",
+  TICKET_CLOSED: "TICKET_CLOSED",
+  TICKET_STATUS_CHANGED: "TICKET_STATUS_CHANGED",
+};
+
+const getNotificationDetails = (type) => {
+  switch (type) {
+    case NotificationType.PASSWORD_CHANGE:
+      return { icon: <FaKey className="w-5 h-5 text-blue-500" /> };
+    case NotificationType.TWO_FA_ENABLED:
+      return { icon: <FaShieldAlt className="w-5 h-5 text-green-500" /> };
+    case NotificationType.TWO_FA_DISABLED:
+      return { icon: <FaShieldAlt className="w-5 h-5 text-red-500" /> };
+    case NotificationType.USER_CREATED:
+      return { icon: <FaBell className="w-5 h-5 text-purple-500" /> };
+    case NotificationType.USER_DELETED:
+      return { icon: <FaBell className="w-5 h-5 text-red-500" /> };
+    case NotificationType.CONTACT_CREATED:
+      return { icon: <FaBell className="w-5 h-5 text-blue-500" /> };
+    case NotificationType.TASK_ASSIGNED:
+      return { icon: <FaBell className="w-5 h-5 text-yellow-500" /> };
+    case NotificationType.MESSAGE_RECEIVED:
+      return { icon: <FaBell className="w-5 h-5 text-teal-500" /> };
+    case NotificationType.TICKET_OPENED:
+      return { icon: <FaBell className="w-5 h-5 text-orange-500" /> };
+    case NotificationType.TICKET_CLOSED:
+      return { icon: <FaBell className="w-5 h-5 text-green-500" /> };
+    case NotificationType.TICKET_STATUS_CHANGED:
+      return { icon: <FaBell className="w-5 h-5 text-blue-500" /> };
+    default:
+      return { icon: <FaBell className="w-5 h-5 text-gray-500" /> };
+  }
+};
+
+const getTimeAgo = timestamp => {
+  const now = new Date();
+  const then = new Date(timestamp);
+  const diffMs = now - then;
+  const diffSeconds = Math.floor(diffMs / 1000);
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffSeconds < 60) return 'just now';
+  if (diffMinutes < 60) return `${diffMinutes} min${diffMinutes > 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hr${diffHours > 1 ? 's' : ''} ago`;
+  return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+};
+
 const NotificationDropdown = () => {
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef(null);
+  const navigate = useNavigate();
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -193,8 +252,9 @@ const NotificationDropdown = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const fetchedNotifications = response.data.notifications || [];
-      setNotifications(fetchedNotifications.slice(0, 20));
-      setUnreadCount(fetchedNotifications.filter(n => !n.isRead).length);
+      const fetchedUnreadCount = response.data.unreadCount || 0;
+      setNotifications(fetchedNotifications);
+      setUnreadCount(fetchedUnreadCount);
     } catch (error) {
       console.error('Failed to fetch notifications:', error.response?.data || error.message);
     }
@@ -228,6 +288,27 @@ const NotificationDropdown = () => {
     }
   };
 
+  const handleRedirect = (link) => {
+    if (!link) return;
+
+    const [path, param1, param2] = link.split('/').filter(Boolean);
+    if (path === 'profile') {
+      const tabMapping = {
+        '2fa': 'twoFactor',
+        'security': 'security',
+        'avatars': 'avatars',
+        'profile': 'profile',
+      };
+      const mappedTab = tabMapping[param1] || 'profile';
+      navigate('/profile', { state: { highlight: mappedTab, section: mappedTab } });
+    } else if (path === 'tasks' && param1) {
+      navigate('/tasks', { state: { highlightTaskId: param1 } });
+    } else {
+      navigate(link);
+    }
+    setIsOpen(false);
+  };
+
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
@@ -244,50 +325,98 @@ const NotificationDropdown = () => {
     <div style={{ marginRight: '200px', marginTop: '-22px' }}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative inline-flex items-center justify-center w-10 h-10 bg-gray-600 rounded-full text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="relative w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-400 shadow-sm transition-all duration-200"
       >
         <FaBell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <div className="absolute block w-3 h-3 bg-red-500 border-2 border-white rounded-full -top-1 start-1"></div>
+          <span className="absolute -top-1 -right-1 w-5 h-5 bg-teal-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
         )}
       </button>
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="z-20 absolute w-80 max-w-sm bg-white divide-y divide-gray-100 rounded-lg shadow-lg border border-gray-200"
-          style={{ top: '80px', right: '20px' }}
+          className="absolute w-96 bg-white rounded-xl shadow-lg border border-gray-100 z-20 overflow-hidden"
+          style={{ top: '80px', right: '100px' }}
         >
-          <div className="block px-4 py-3 font-medium text-center text-gray-800 rounded-t-lg bg-gray-100">
-            Notifications {unreadCount > 0 && `(${unreadCount} unread)`}
-          </div>
-          <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
-            {notifications.length > 0 ? (
-              notifications.map(notification => (
-                <div
-                  key={notification.id}
-                  onClick={() => !notification.isRead && markNotificationAsRead(notification.id)}
-                  className="flex items-start px-4 py-4 hover:bg-gray-50 cursor-pointer"
-                >
-                  {!notification.isRead && <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 mt-2"></div>}
-                  <div className="w-full ps-3">
-                    <div className={`text-gray-800 text-sm ${!notification.isRead ? 'font-bold' : 'font-medium'} mb-1.5`}>
-                      {notification.message}
-                    </div>
-                    <div className="text-xs text-blue-600">{getTimeAgo(notification.timestamp)}</div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="px-4 py-4 text-center text-gray-500">No notifications</div>
+          {/* Header */}
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-800">Notifications</h3>
+            {unreadCount > 0 && (
+              <span className="text-sm text-gray-500">
+                {unreadCount} unread
+              </span>
             )}
           </div>
+
+          {/* Notifications List */}
+          <div className="max-h-80 overflow-y-auto">
+            {notifications.length > 0 ? (
+              notifications.map(notification => {
+                const { icon } = getNotificationDetails(notification.type);
+                return (
+                  <div
+                    key={notification.id}
+                    onClick={() => !notification.isRead && markNotificationAsRead(notification.id)}
+                    className="flex items-center px-5 py-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors duration-150"
+                  >
+                    {/* Icon */}
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                      {icon}
+                    </div>
+
+                    {/* Notification Content */}
+                    <div className="ml-3 flex-1">
+                      <p className={`text-sm ${notification.isRead ? 'text-gray-600' : 'text-gray-800 font-medium'}`}>
+                        {notification.message}
+                      </p>
+                      <p className="text-xs text-gray-400">{getTimeAgo(notification.timestamp)}</p>
+                    </div>
+
+                    {/* Action Button (if link exists) */}
+                    {notification.link && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRedirect(notification.link);
+                        }}
+                        className="flex-shrink-0 ml-2 p-1 bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300 transition-all duration-150"
+                        title="Go to page"
+                      >
+                        <FaChevronRight className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="px-5 py-6 text-center text-gray-500">
+                <FaBell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">No notifications yet</p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
           {notifications.length > 0 && (
-            <button
-              onClick={markAllAsRead}
-              className="w-full py-2.5 text-sm font-medium text-center text-gray-900 rounded-b-lg bg-gray-100 hover:bg-gray-200"
-            >
-              Mark all as read
-            </button>
+            <div className="border-t border-gray-200">
+              <button
+                onClick={markAllAsRead}
+                className="w-full py-3 text-sm text-blue-600 hover:bg-blue-50 font-medium transition-colors duration-150"
+              >
+                Mark All as Read
+              </button>
+              <button
+                onClick={() => {
+                  navigate('/notifications');
+                  setIsOpen(false);
+                }}
+                className="w-full py-3 text-sm text-gray-600 hover:bg-gray-50 font-medium transition-colors duration-150 border-t border-gray-200"
+              >
+                View All
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -295,21 +424,7 @@ const NotificationDropdown = () => {
   );
 };
 
-const getTimeAgo = timestamp => {
-  const now = new Date();
-  const then = new Date(timestamp);
-  const diffMs = now - then;
-  const diffSeconds = Math.floor(diffMs / 1000);
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  const diffHours = Math.floor(diffMinutes / 60);
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffSeconds < 60) return 'just now';
-  if (diffMinutes < 60) return `${diffMinutes} min${diffMinutes > 1 ? 's' : ''} ago`;
-  if (diffHours < 24) return `${diffHours} hr${diffHours > 1 ? 's' : ''} ago`;
-  return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-};
-
-const ProtectedRoute = ({ children, allowedRoles = ['SuperAdmin', 'Admin'], fetchUser }) => {
+const ProtectedRoute = ({ children, allowedRoles = ['SuperAdmin', 'Admin'], fetchUser, onlineUsers }) => {
   const token = localStorage.getItem('token');
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
@@ -320,18 +435,17 @@ const ProtectedRoute = ({ children, allowedRoles = ['SuperAdmin', 'Admin'], fetc
       return false;
     }
     try {
-      console.log('Fetching user data in ProtectedRoute with token:', token.slice(0, 10) + '...');
       const response = await axios.get('http://localhost:8080/api/profile', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log('Raw API response:', response.data);
+
       const photoUrl = response.data.profilePhotoUrl ? `http://localhost:8080${response.data.profilePhotoUrl}` : '';
       const userData = {
         ...response.data,
         username: response.data.username || response.data.name || 'Unknown User',
         profilePhotoUrl: photoUrl,
       };
-      console.log('Setting user data:', userData);
+
       setUser(userData);
       setError(null);
       return true;
@@ -357,7 +471,7 @@ const ProtectedRoute = ({ children, allowedRoles = ['SuperAdmin', 'Admin'], fetc
     <>
       <RefreshOnMount fetchData={fetchUserData} hasError={!!error} />
       {error && <div className="text-red-600 text-center p-4">{error}</div>}
-      {children}
+      {React.cloneElement(children, { onlineUsers })}
     </>
   );
 };
@@ -371,51 +485,110 @@ function App() {
   const [showAIButton, setShowAIButton] = useState(() => JSON.parse(localStorage.getItem('showAIButton') || 'true'));
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [initialChatMessage, setInitialChatMessage] = useState(null);
+  const [onlineUsers, setOnlineUsers] = useState([]);
   const dropdownRef = useRef(null);
 
   const fetchUser = async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token found');
-      console.log('Fetching user in App with token:', token.slice(0, 10) + '...');
       const response = await axios.get('http://localhost:8080/api/profile', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log('Raw API response in App:', response.data);
+
       const photoUrl = response.data.profilePhotoUrl ? `http://localhost:8080${response.data.profilePhotoUrl}` : '';
       const userData = {
         ...response.data,
         username: response.data.username || response.data.name || 'Unknown User',
         profilePhotoUrl: photoUrl,
       };
-      console.log('Setting user in App:', userData);
+
       setUser(userData);
       localStorage.setItem('username', userData.username);
       setError(null);
       return true;
     } catch (error) {
-      console.error('Failed to fetch user data in App:', error.response?.data || error.message);
       setError('Failed to fetch user data');
       setIsLoggedIn(false);
       return false;
     }
   };
 
+  // WebSocket setup function
+  const setupWebSocket = (userId) => {
+    const ws = new WebSocket(`ws://localhost:8080/ws/user-status?userId=${encodeURIComponent(userId)}`);
+
+    ws.onopen = () => console.log(`WebSocket connected for userId: ${userId}`);
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log('WebSocket message received:', data);
+
+      setOnlineUsers(prev => {
+        const userExists = prev.some(u => u.id === data.userId);
+        if (userExists) {
+          return prev.map(u =>
+            u.id === data.userId
+              ? { ...u, isOnline: data.activity === 'online', lastActive: data.lastActive !== null ? Number(data.lastActive) : null }
+              : u
+          );
+        } else {
+          return [
+            ...prev,
+            {
+              id: data.userId,
+              isOnline: data.activity === 'online',
+              lastActive: data.lastActive !== null ? Number(data.lastActive) : null,
+            },
+          ];
+        }
+      });
+    };
+
+    ws.onclose = () => {
+      console.warn(`WebSocket disconnected for userId: ${userId}, reconnecting...`);
+      setTimeout(() => setupWebSocket(userId), 5000); // Reconnect after 5 seconds
+    };
+
+    ws.onerror = (error) => console.error('WebSocket error:', error);
+
+    return ws;
+  };
+
+  // WebSocket initialization
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const token = localStorage.getItem('token');
+    let userId = '1'; // Default fallback ID
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        userId = payload.sub;
+      } catch (e) {
+        console.error('Token parsing error:', e);
+      }
+    }
+
+    const ws = setupWebSocket(userId);
+
+    return () => {
+      ws.close();
+    };
+  }, [isLoggedIn]);
+
   useEffect(() => {
     if (isLoggedIn) {
-      console.log('isLoggedIn is true, fetching user...');
       fetchUser();
-    } else {
-      console.log('isLoggedIn is false, skipping fetch');
     }
   }, [isLoggedIn]);
 
   const handleLogout = () => {
-    console.log('Logging out...');
     localStorage.removeItem('token');
     setIsLoggedIn(false);
     setUser(null);
     setError(null);
+    setOnlineUsers([]);
     window.location.href = '/login';
   };
 
@@ -435,8 +608,8 @@ function App() {
     ? [
         ...(user.role === 'User' ? [] : [{ to: '/dashboard', label: 'Dashboard', icon: 'dashboard' }]),
         ...(user.role === 'User' ? [] : [{ to: '/users', label: 'Users', icon: 'people' }]),
-        { to: '/companies', label: 'Companies', icon: <FaBuilding /> }, // Updated to use FaBuilding
         { to: '/contacts', label: 'Contacts', icon: 'contacts' },
+        { to: '/companies', label: 'Companies', icon: 'apartment' },
         { to: '/tasks', label: 'Tasks', icon: 'task' },
         { to: '/reports', label: 'Reports', icon: 'analytics' },
         { to: '/opportunities', label: 'Opportunities', icon: 'trending_up' },
@@ -487,13 +660,20 @@ function App() {
           <div className="flex">
             <aside className={`fixed h-screen bg-white shadow-xl p-4 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
               <div className="flex items-left justify-between mb-4">
-                <img src={isSidebarOpen ? logo : logo2} alt="Logo" className={`object-contain rounded-lg ${isSidebarOpen ? 'w-38 h-16' : 'w-12 h-12'}`} style={{ marginTop: '5px' }} />
+                <img src={isSidebarOpen ? logo : logo2} alt="Logo" className={`object-contain rounded-lg ${isSidebarOpen ? 'w-48 h-16' : 'w-14 h-14'}`} style={{ marginTop: '5px' }} />
                 <button
                   onClick={toggleSidebar}
-                  className="fixed top-2.5 flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-full hover:bg-gray-100 transition-all duration-200 z-50"
-                  style={{ top: '25px', left: isSidebarOpen ? '260px' : '90px' }}
+                  className="fixed flex items-center justify-center w-12 h-12 bg-white border-gray-200 border-t border-r border-b hover:bg-gray-100 transition-all duration-200 z-50"
+                  style={{
+                    top: '21px',
+                    left: isSidebarOpen ? '256px' : '80px',
+                    borderTopRightRadius: '12px',
+                    borderBottomRightRadius: '12px',
+                  }}
                 >
-                  <span className="material-icons-round text-gray-600 text-base">{isSidebarOpen ? 'close' : 'menu'}</span>
+                  <span className="material-icons-round text-gray-600 text-base">
+                    {isSidebarOpen ? 'close' : <img src={SidebarIcon} alt="menu icon" className="w-7 h-7" />}
+                  </span>
                 </button>
               </div>
               <nav className="flex-1 space-y-2 mt-2 overflow-y-auto">
@@ -505,20 +685,12 @@ function App() {
                   >
                     {isSidebarOpen ? (
                       <>
-                        {typeof link.icon === 'string' ? (
-                          <span className="material-icons-round mr-3">{link.icon}</span>
-                        ) : (
-                          <div className="mr-3">{link.icon}</div>
-                        )}
+                        <span className="material-icons-round mr-3">{link.icon}</span>
                         <span>{link.label}</span>
                       </>
                     ) : (
                       <Tooltip label={link.label} isSidebarOpen={isSidebarOpen} iconRef={iconRefs.current[index]}>
-                        {typeof link.icon === 'string' ? (
-                          <span className="material-icons-round" ref={iconRefs.current[index]}>{link.icon}</span>
-                        ) : (
-                          <div ref={iconRefs.current[index]}>{link.icon}</div>
-                        )}
+                        <span className="material-icons-round" ref={iconRefs.current[index]}>{link.icon}</span>
                       </Tooltip>
                     )}
                   </NavLink>
@@ -589,17 +761,17 @@ function App() {
               </div>
               <div className="max-w-7xl mx-auto">
                 <Routes>
-                  <Route path="/verify-email" element={<VerifyEmail />} />
-                  <Route path="/profile" element={<ProtectedRoute fetchUser={fetchUser}><Profile setUser={setUser} /></ProtectedRoute>} />
-                  <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['SuperAdmin', 'Admin']} fetchUser={fetchUser}><Dashboard /></ProtectedRoute>} />
-                  <Route path="/" element={<ProtectedRoute fetchUser={fetchUser}><Profile setUser={setUser} /></ProtectedRoute>} />
-                  <Route path="/users" element={<ProtectedRoute allowedRoles={['SuperAdmin', 'Admin']} fetchUser={fetchUser}><Users /></ProtectedRoute>} />
+                  <Route path="/profile" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Profile setUser={setUser} /></ProtectedRoute>} />
+                  <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['SuperAdmin', 'Admin']} fetchUser={fetchUser} onlineUsers={onlineUsers}><Dashboard /></ProtectedRoute>} />
+                  <Route path="/" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Profile setUser={setUser} /></ProtectedRoute>} />
+                  <Route path="/users" element={<ProtectedRoute allowedRoles={['SuperAdmin', 'Admin']} fetchUser={fetchUser} onlineUsers={onlineUsers}><Users /></ProtectedRoute>} />
+                  <Route path="/contacts" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Contacts /></ProtectedRoute>} />
+                  <Route path="/tasks" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Tasks /></ProtectedRoute>} />
+                  <Route path="/reports" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Reports /></ProtectedRoute>} />
+                  <Route path="/opportunities" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Opportunities /></ProtectedRoute>} />
+                  <Route path="/tickets" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Ticket /></ProtectedRoute>} />
+                  <Route path="/tickets/:ticketId" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Ticket /></ProtectedRoute>} />
                   <Route path="/companies" element={<ProtectedRoute fetchUser={fetchUser}><Companies /></ProtectedRoute>} />
-                  <Route path="/contacts" element={<ProtectedRoute fetchUser={fetchUser}><Contacts /></ProtectedRoute>} />
-                  <Route path="/tasks" element={<ProtectedRoute fetchUser={fetchUser}><Tasks /></ProtectedRoute>} />
-                  <Route path="/reports" element={<ProtectedRoute fetchUser={fetchUser}><Reports /></ProtectedRoute>} />
-                  <Route path="/opportunities" element={<ProtectedRoute fetchUser={fetchUser}><Opportunities /></ProtectedRoute>} />
-                  <Route path="/tickets" element={<ProtectedRoute fetchUser={fetchUser}><Ticket /></ProtectedRoute>} />
                   <Route path="/login" element={<Navigate to="/profile" />} />
                   <Route path="/signup" element={<Navigate to="/profile" />} />
                   <Route path="/forgot-password" element={<Navigate to="/profile" />} />
@@ -626,6 +798,20 @@ function App() {
           </div>
         )}
       </div>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        @keyframes slideIn { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateY(0); opacity: 1; } to { transform: translateY(30px); opacity: 0; } }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+        .animate-scaleIn { animation: scaleIn 0.3s ease-out; }
+        .animate-slideIn { animation: slideIn 0.3s ease-out; }
+        .animate-slideOut { animation: slideOut 0.3s ease-out; }
+        .animate-bounce { animation: bounce 0.6s infinite; }
+        .animate-blink { animation: blink 0.7s infinite; }
+      `}</style>
     </Router>
   );
 }
