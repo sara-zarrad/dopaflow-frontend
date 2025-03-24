@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   FaEdit, FaTrash, FaUserPlus, FaSpinner, FaBan, FaUserCheck, FaCheck,
-  FaTimes, FaSearch, FaUser, FaEnvelope, FaTag, FaCalendarAlt, FaClock, FaCircle
+  FaTimes, FaSearch, FaUser, FaEnvelope, FaTag, FaCalendarAlt, FaClock, FaCircle, FaExclamationTriangle
 } from 'react-icons/fa';
 import axios from 'axios';
 
@@ -9,7 +9,7 @@ import axios from 'axios';
 axios.defaults.baseURL = 'http://localhost:8080';
 axios.defaults.withCredentials = true;
 
-// Utility Functions
+// Utility Functions (unchanged)
 const getInitials = (name) => {
   if (!name) return 'UN';
   const names = name.split(' ');
@@ -28,8 +28,8 @@ const formatBirthdate = (birthdate) => {
 };
 
 const formatLastActive = (lastActive, isOnline) => {
-  if (isOnline) return null; // No text if online (green dot will show)
-  if (!lastActive) return null; // No text if lastActive is null (never connected)
+  if (isOnline) return null;
+  if (!lastActive) return null;
 
   const now = new Date();
   const last = new Date(lastActive);
@@ -37,10 +37,10 @@ const formatLastActive = (lastActive, isOnline) => {
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMins / 60);
 
-  if (diffMins < 1) return { text: 'now', color: '#22c55e' }; // Green for <1h
-  if (diffMins < 60) return { text: `${diffMins}m`, color: '#22c55e' }; // Green for <1h
-  if (diffHours < 24) return { text: `${diffHours}h`, color: '#6b7280' }; // Gray for 1-24h
-  return null; // No text for >24h or never connected
+  if (diffMins < 1) return { text: 'now', color: '#22c55e' };
+  if (diffMins < 60) return { text: `${diffMins}m`, color: '#22c55e' };
+  if (diffHours < 24) return { text: `${diffHours}h`, color: '#6b7280' };
+  return null;
 };
 
 const formatDate = (date) => {
@@ -53,7 +53,7 @@ const formatDate = (date) => {
   }) : 'Never';
 };
 
-// User Profile Popup Component
+// User Profile Popup Component (unchanged)
 const UserProfilePopup = ({ user, show }) => {
   const lastActive = formatLastActive(user.lastActive, user.isOnline);
   return (
@@ -108,7 +108,7 @@ const UserProfilePopup = ({ user, show }) => {
   );
 };
 
-// User Sidebar Component
+// User Sidebar Component (unchanged)
 const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading }) => {
   const lastActive = formatLastActive(user.lastActive, user.isOnline);
   return (
@@ -225,7 +225,76 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading 
   );
 };
 
-// Main Users Component
+// New Custom Modal Component
+const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, loading }) => {
+  if (!isOpen) return null;
+
+  const getStyles = () => {
+    switch (actionType) {
+      case 'delete':
+        return {
+          icon: <FaTrash className="text-red-500 w-8 h-8" />,
+          bgColor: 'bg-red-100',
+          textColor: 'text-red-700',
+          buttonColor: 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700',
+        };
+      case 'suspend':
+        return {
+          icon: <FaBan className="text-orange-500 w-8 h-8" />,
+          bgColor: 'bg-orange-100',
+          textColor: 'text-orange-700',
+          buttonColor: 'bg-gradient-to-r from-orange-600 to-yellow-600 hover:from-orange-700 hover:to-yellow-700',
+        };
+      case 'activate':
+        return {
+          icon: <FaUserCheck className="text-green-500 w-8 h-8" />,
+          bgColor: 'bg-green-100',
+          textColor: 'text-green-700',
+          buttonColor: 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700',
+        };
+      default:
+        return {
+          icon: <FaExclamationTriangle className="text-gray-500 w-8 h-8" />,
+          bgColor: 'bg-gray-100',
+          textColor: 'text-gray-700',
+          buttonColor: 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800',
+        };
+    }
+  };
+
+  const { icon, bgColor, textColor, buttonColor } = getStyles();
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300">
+      <div className={`bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+        <div className={`flex items-center justify-center w-16 h-16 rounded-full ${bgColor} mx-auto mb-4`}>
+          {icon}
+        </div>
+        <h3 className={`text-2xl font-bold text-center ${textColor} mb-2`}>{title}</h3>
+        <p className="text-center text-gray-600 mb-6">{message}</p>
+        <div className="flex justify-center space-x-4">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`px-6 py-2 ${buttonColor} text-white rounded-full shadow-md transition-all duration-300 flex items-center`}
+            disabled={loading}
+          >
+            {loading && <FaSpinner className="animate-spin mr-2" />}
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Main Users Component (Updated with Custom Modal)
 const Users = ({ onlineUsers = [] }) => {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
@@ -237,6 +306,7 @@ const Users = ({ onlineUsers = [] }) => {
   const [hoveredUserId, setHoveredUserId] = useState(null);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
+  const [modalConfig, setModalConfig] = useState({ isOpen: false, onConfirm: null, title: '', message: '', actionType: '' });
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -288,7 +358,6 @@ const Users = ({ onlineUsers = [] }) => {
     }
   };
 
-  // Sync onlineUsers with users state
   useEffect(() => {
     setUsers(prevUsers =>
       prevUsers.map(user => {
@@ -339,64 +408,79 @@ const Users = ({ onlineUsers = [] }) => {
     }, 3000);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`/api/users/delete/${id}`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : undefined,
-        },
-      });
-      setUsers(users.filter((user) => user.id !== id));
-      setFilteredUsers(filteredUsers.filter((user) => user.id !== id));
-      setMessage('User deleted successfully');
-      setSelectedUser(null);
-      clearMessage();
-    } catch (error) {
-      setError(error.response?.data?.message || 'Failed to delete user');
-      clearMessage();
-    } finally {
-      setLoading(false);
-    }
+  const handleDelete = (id) => {
+    setModalConfig({
+      isOpen: true,
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const token = localStorage.getItem('token');
+          await axios.delete(`/api/users/delete/${id}`, {
+            headers: {
+              Authorization: token ? `Bearer ${token}` : undefined,
+            },
+          });
+          setUsers(users.filter((user) => user.id !== id));
+          setFilteredUsers(filteredUsers.filter((user) => user.id !== id));
+          setMessage('User deleted successfully');
+          setSelectedUser(null);
+          clearMessage();
+        } catch (error) {
+          setError(error.response?.data?.message || 'Failed to delete user');
+          clearMessage();
+        } finally {
+          setLoading(false);
+          setModalConfig({ ...modalConfig, isOpen: false });
+        }
+      },
+      title: 'Delete User',
+      message: 'Are you sure you want to delete this user? This action cannot be undone.',
+      actionType: 'delete',
+    });
   };
 
-  const handleStatusToggle = async (id) => {
+  const handleStatusToggle = (id) => {
     const user = users.find((user) => user.id === id);
     const newStatus = user.status === 'Active' ? 'Suspended' : 'Active';
     const action = user.status === 'Active' ? 'suspend' : 'activate';
 
-    if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
-
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const endpoint = newStatus === 'Suspended' ? '/api/users/block' : '/api/users/activate';
-      await axios.post(endpoint, { id }, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : undefined,
-        },
-      });
-      const updatedUsers = users.map((user) =>
-        user.id === id ? { ...user, status: newStatus } : user
-      );
-      setUsers(updatedUsers);
-      setFilteredUsers(updatedUsers.filter((user) =>
-        user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase())
-      ));
-      if (selectedUser && selectedUser.id === id) {
-        setSelectedUser({ ...selectedUser, status: newStatus });
-      }
-      setMessage(`User ${action}d successfully`);
-      clearMessage();
-    } catch (error) {
-      setError(error.response?.data?.message || `Failed to ${action} user`);
-      clearMessage();
-    } finally {
-      setLoading(false);
-    }
+    setModalConfig({
+      isOpen: true,
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const token = localStorage.getItem('token');
+          const endpoint = newStatus === 'Suspended' ? '/api/users/block' : '/api/users/activate';
+          await axios.post(endpoint, { id }, {
+            headers: {
+              Authorization: token ? `Bearer ${token}` : undefined,
+            },
+          });
+          const updatedUsers = users.map((user) =>
+            user.id === id ? { ...user, status: newStatus } : user
+          );
+          setUsers(updatedUsers);
+          setFilteredUsers(updatedUsers.filter((user) =>
+            user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            user.email.toLowerCase().includes(searchQuery.toLowerCase())
+          ));
+          if (selectedUser && selectedUser.id === id) {
+            setSelectedUser({ ...selectedUser, status: newStatus });
+          }
+          setMessage(`User ${action}d successfully`);
+          clearMessage();
+        } catch (error) {
+          setError(error.response?.data?.message || `Failed to ${action} user`);
+          clearMessage();
+        } finally {
+          setLoading(false);
+          setModalConfig({ ...modalConfig, isOpen: false });
+        }
+      },
+      title: `${action === 'suspend' ? 'Suspend' : 'Activate'} User`,
+      message: `Are you sure you want to ${action} this user?`,
+      actionType: action,
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -824,11 +908,21 @@ const Users = ({ onlineUsers = [] }) => {
           />
         </div>
       )}
+
+      <CustomModal
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        actionType={modalConfig.actionType}
+        loading={loading}
+      />
     </div>
   );
 };
 
-// Custom Styles
+// Custom Styles (Updated)
 const styles = `
   @keyframes slideIn {
     from { transform: translateY(-20px); opacity: 0; }

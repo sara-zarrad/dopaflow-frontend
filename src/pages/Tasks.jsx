@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   FaPlus, FaCheck, FaEdit, FaTrash, FaUser, FaFilter, FaCalendarAlt, 
-  FaSpinner, FaTasks, FaBan, FaExclamationCircle, FaTimes, FaClock, 
-  FaTag, FaFolderOpen, FaChevronDown, FaSearch, FaExpandArrowsAlt
+  FaSpinner, FaTasks, FaBan, FaExclamationCircle, FaTimes, FaTag, 
+  FaFolderOpen, FaSearch, FaExpandArrowsAlt, FaExclamationTriangle
 } from 'react-icons/fa';
 import axios from 'axios';
 
@@ -17,12 +17,30 @@ const api = axios.create({
 
 api.interceptors.request.use(config => {
   const token = getAuthToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  else console.warn('No token found in localStorage');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+    console.log('Token attached to request:', token); // Debug token
+  } else {
+    console.warn('No token found in localStorage, request will be unauthenticated');
+  }
   return config;
-}, error => Promise.reject(error));
+}, error => {
+  console.error('Request interceptor error:', error);
+  return Promise.reject(error);
+});
 
-// Styling Helper Functions
+// Helper to fetch current user (for testing auth)
+const fetchCurrentUser = async () => {
+  try {
+    const response = await api.get('/users/me'); // Assuming an endpoint like this exists
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch current user:', error);
+    return null;
+  }
+};
+
+// Styling Helper Functions (unchanged)
 const getPriorityColor = (priority) => {
   switch (priority) {
     case 'HIGH': return 'bg-gradient-to-r from-red-500 to-red-600 text-white';
@@ -60,7 +78,62 @@ const getStatusColor = (status) => {
   }
 };
 
-// Task Details Popup Component
+// Custom Modal Component (unchanged)
+const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, loading }) => {
+  if (!isOpen) return null;
+
+  const getStyles = () => {
+    switch (actionType) {
+      case 'delete':
+        return {
+          icon: <FaTrash className="text-red-500 w-8 h-8" />,
+          bgColor: 'bg-red-100',
+          textColor: 'text-red-700',
+          buttonColor: 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700',
+        };
+      default:
+        return {
+          icon: <FaExclamationTriangle className="text-gray-500 w-8 h-8" />,
+          bgColor: 'bg-gray-100',
+          textColor: 'text-gray-700',
+          buttonColor: 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800',
+        };
+    }
+  };
+
+  const { icon, bgColor, textColor, buttonColor } = getStyles();
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300">
+      <div className={`bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+        <div className={`flex items-center justify-center w-16 h-16 rounded-full ${bgColor} mx-auto mb-4`}>
+          {icon}
+        </div>
+        <h3 className={`text-2xl font-bold text-center ${textColor} mb-2`}>{title}</h3>
+        <p className="text-center text-gray-600 mb-6">{message}</p>
+        <div className="flex justify-center space-x-4">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`px-6 py-2 ${buttonColor} text-white rounded-full shadow-md transition-all duration-300 flex items-center`}
+            disabled={loading}
+          >
+            {loading && <FaSpinner className="animate-spin mr-2" />}
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Task Details Popup Component (unchanged)
 const TaskDetailsPopup = ({ task, show, onClose, column }) => (
   <div 
     className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 
@@ -130,7 +203,7 @@ const TaskDetailsPopup = ({ task, show, onClose, column }) => (
   </div>
 );
 
-// Task Card Component
+// Task Card Component (unchanged)
 const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted }) => {
   const [showDetails, setShowDetails] = useState(false);
 
@@ -236,7 +309,7 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted }) => 
   );
 };
 
-// Task Column Component
+// Task Column Component (unchanged)
 const TaskColumn = ({ column, tasksList, onMove, onEdit, onDelete, highlightedTaskId }) => (
   <div 
     className={`bg-white rounded-2xl shadow-lg p-6 border-t-4 ${getStatusColor(column)} 
@@ -271,8 +344,8 @@ const TaskColumn = ({ column, tasksList, onMove, onEdit, onDelete, highlightedTa
   </div>
 );
 
-// Add Task Modal Component
-const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = [], opportunities = [], loading }) => (
+// Add Task Modal Component (unchanged)
+const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users, opportunities, loading }) => (
   <div 
     className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 
       ${show ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
@@ -357,7 +430,7 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
               focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
           >
             <option value="">Select a user</option>
-            {Array.isArray(users) && users.map(user => (
+            {users.map(user => (
               <option key={user.id} value={user.id}>{user.username}</option>
             ))}
           </select>
@@ -371,7 +444,7 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
               focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
           >
             <option value="">Select an opportunity</option>
-            {Array.isArray(opportunities) && opportunities.map(opportunity => (
+            {opportunities.map(opportunity => (
               <option key={opportunity.id} value={opportunity.id}>{opportunity.title}</option>
             ))}
           </select>
@@ -411,8 +484,8 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
   </div>
 );
 
-// Edit Task Modal Component
-const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users = [], opportunities = [], loading }) => {
+// Edit Task Modal Component (unchanged)
+const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users, opportunities, loading }) => {
   if (!show || !editTask) return null;
 
   return (
@@ -500,7 +573,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
                 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="">Select a user</option>
-              {Array.isArray(users) && users.map(user => (
+              {users.map(user => (
                 <option key={user.id} value={user.id}>{user.username}</option>
               ))}
             </select>
@@ -512,9 +585,10 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
               onChange={(e) => setEditTask({ ...editTask, opportunityId: e.target.value })}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
                 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              required
             >
               <option value="">Select an opportunity</option>
-              {Array.isArray(opportunities) && opportunities.map(opportunity => (
+              {opportunities.map(opportunity => (
                 <option key={opportunity.id} value={opportunity.id}>{opportunity.title}</option>
               ))}
             </select>
@@ -566,37 +640,46 @@ const Tasks = () => {
   const [editTask, setEditTask] = useState(null);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState(null);
   const [filter, setFilter] = useState('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [highlightedTaskId, setHighlightedTaskId] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchData = async () => {
+    const initializeData = async () => {
       setLoading(true);
+      const user = await fetchCurrentUser();
+      if (!user) {
+        setError('You must be logged in to view tasks');
+        navigate('/login'); // Redirect to login if no user
+        return;
+      }
+      setCurrentUser(user);
       await Promise.all([fetchTasks(), fetchUsers(), fetchOpportunities()]);
       setLoading(false);
     };
-    fetchData();
+    initializeData();
 
     const { highlightTaskId } = location.state || {};
     if (highlightTaskId) {
       setHighlightedTaskId(highlightTaskId);
-      const timer = setTimeout(() => {
-        setHighlightedTaskId(null);
-      }, 2000);
+      const timer = setTimeout(() => setHighlightedTaskId(null), 2000);
       return () => clearTimeout(timer);
     }
-  }, [location]);
+  }, [location, navigate]);
 
   const fetchTasks = async () => {
     try {
       const response = await api.get('/tasks/all');
       console.log('Tasks response:', response.data);
-      const taskData = (response.data.content || []).reduce((acc, task) => {
+      const taskData = response.data.content.reduce((acc, task) => {
         const status = task.statutTask || 'ToDo';
         acc[status] = [...(acc[status] || []), task];
         return acc;
@@ -612,41 +695,43 @@ const Tasks = () => {
   const fetchUsers = async () => {
     try {
       const response = await api.get('/users/all');
-      console.log('Users response:', response.data);
-      setUsers(Array.isArray(response.data) ? response.data : []);
+      setUsers(response.data);
     } catch (error) {
       console.error('Error fetching users:', error);
       setError('Failed to load users');
-      setUsers([]);
     }
   };
 
   const fetchOpportunities = async () => {
     try {
       const response = await api.get('/opportunities/all');
-      console.log('Opportunities response:', response.data);
-      const opportunitiesData = Array.isArray(response.data.content) ? response.data.content : [];
-      setOpportunities(opportunitiesData);
+      setOpportunities(response.data.content);
     } catch (error) {
       console.error('Error fetching opportunities:', error);
-      setError('Failed to load opportunities');
-      setOpportunities([]);
+      setError('Failed to load opportunities for tasks');
     }
   };
 
   const handleAddTask = async (e) => {
     e.preventDefault();
+    if (!currentUser) {
+      setError('Cannot add task: User not authenticated');
+      navigate('/login');
+      return;
+    }
     setLoading(true);
     try {
       const response = await api.post(
         `/tasks/add?opportunityId=${newTask.opportunityId}&assignedUserId=${newTask.assignedUserId}`,
         newTask
       );
+      console.log('Task added:', response.data); // Debug response
       setTasks(prev => ({ ...prev, ToDo: [response.data, ...prev.ToDo] }));
       setNewTask({ title: '', description: '', deadline: '', priority: 'MEDIUM', typeTask: 'CALL', assignedUserId: '', opportunityId: '' });
       setShowAddTaskModal(false);
       setError(null);
     } catch (error) {
+      console.error('Error adding task:', error.response?.data || error);
       setError(`Error adding task: ${error.response?.data?.message || error.message}`);
     } finally {
       setLoading(false);
@@ -710,16 +795,27 @@ const Tasks = () => {
     }
   };
 
-  const handleDeleteTask = async (taskId, column) => {
+  const handleDeleteTask = (taskId, column) => {
+    setTaskToDelete({ id: taskId, column });
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!taskToDelete) return;
     setLoading(true);
     try {
-      await api.delete(`/tasks/delete/${taskId}`);
-      setTasks(prev => ({ ...prev, [column]: prev[column].filter(t => t.id !== taskId) }));
+      await api.delete(`/tasks/delete/${taskToDelete.id}`);
+      setTasks(prev => ({
+        ...prev,
+        [taskToDelete.column]: prev[taskToDelete.column].filter(t => t.id !== taskToDelete.id)
+      }));
       setError(null);
     } catch (error) {
       setError('Error deleting task');
     } finally {
       setLoading(false);
+      setShowDeleteModal(false);
+      setTaskToDelete(null);
     }
   };
 
@@ -762,6 +858,7 @@ const Tasks = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 p-5 rounded-[10px] border">
+      {/* Error Alert */}
       {error && (
         <div className="mb-8 p-6 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-xl shadow-lg 
           flex items-center justify-between animate-slideIn max-w-3xl mx-auto">
@@ -778,6 +875,7 @@ const Tasks = () => {
         </div>
       )}
 
+      {/* Header */}
       <header className="flex flex-col sm:flex-row justify-between items-center mb-12 max-w-6xl mx-auto gap-4">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-800 flex items-center">
           Tasks
@@ -799,6 +897,7 @@ const Tasks = () => {
             className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full 
               hover:from-blue-700 hover:to-blue-800 flex items-center shadow-lg transition-all duration-300 
               transform hover:scale-105"
+            disabled={!currentUser}
           >
             <FaPlus className="mr-2" /> New Task
           </button>
@@ -830,6 +929,7 @@ const Tasks = () => {
         </div>
       </header>
 
+      {/* Task Columns */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 max-w-7xl mx-auto">
         {Object.entries(tasks).map(([column, tasksList]) => (
           <TaskColumn
@@ -844,6 +944,7 @@ const Tasks = () => {
         ))}
       </div>
 
+      {/* Modals */}
       <AddTaskModal
         show={showAddTaskModal}
         onClose={() => setShowAddTaskModal(false)}
@@ -864,11 +965,20 @@ const Tasks = () => {
         opportunities={opportunities}
         loading={loading}
       />
+      <CustomModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDeleteTask}
+        title="Delete Task"
+        message="Are you sure you want to delete this task? This action cannot be undone."
+        actionType="delete"
+        loading={loading}
+      />
     </div>
   );
 };
 
-// Custom Styles with Tailwind Animations
+// Custom Styles with Tailwind Animations (unchanged)
 const styles = `
   @keyframes slideIn {
     from { transform: translateY(-20px); opacity: 0; }

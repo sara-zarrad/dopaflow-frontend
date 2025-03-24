@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  FaPlus, FaEdit, FaTrash, FaChartLine, FaSearch, FaFilter, FaArrowUp, FaArrowDown, FaTimes, FaSpinner, FaExpand, FaSortUp, FaSortDown, FaUndo
+  FaPlus, FaEdit, FaTrash, FaChartLine, FaSearch, FaFilter, FaArrowUp, FaArrowDown, FaTimes, FaSpinner, FaExpand, FaSortUp, FaSortDown, FaUndo, FaCheck,
+  FaTag, FaUser, FaList, FaChartBar, FaCalendarAlt
 } from 'react-icons/fa';
 import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -37,6 +38,7 @@ const Opportunities = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filters, setFilters] = useState({ priority: '', stage: '', minValue: '', maxValue: '' });
   const [errorMessage, setErrorMessage] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
   const [showAssignPopup, setShowAssignPopup] = useState(false);
   const [showExistingOpportunities, setShowExistingOpportunities] = useState(false);
   const [preselectedContactName, setPreselectedContactName] = useState('');
@@ -44,8 +46,13 @@ const Opportunities = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState('Prospection');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-  const [expandedOpportunityId, setExpandedOpportunityId] = useState(null); // New state for individual opportunity expansion
+  const [expandedOpportunityId, setExpandedOpportunityId] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [opportunityToDelete, setOpportunityToDelete] = useState(null);
+  const [showContactDropdown, setShowContactDropdown] = useState(false);
   const formRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   const stageMapping = {
     PROSPECTION: 'Prospection',
@@ -68,6 +75,7 @@ const Opportunities = () => {
 
   const debouncedSetShowForm = useMemo(() => debounce((value) => setShowForm(value), 200), []);
 
+  // Handle click outside to close form
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (formRef.current && !formRef.current.contains(event.target)) {
@@ -81,6 +89,17 @@ const Opportunities = () => {
     if (showForm && formRef.current) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showForm, preselectedContactId, editingOpportunityId, debouncedSetShowForm]);
+
+  // Handle click outside to close contact dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowContactDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const debouncedFetchContacts = useMemo(
     () => debounce(async (query) => {
@@ -126,9 +145,17 @@ const Opportunities = () => {
       const opportunities = opportunitiesRes.data.content || [];
       setAllOpportunities(opportunities);
       const fetchedContacts = contactsRes.data.content || [];
+      console.log('Fetched contacts:', fetchedContacts); // Check if company is here
       setContacts(fetchedContacts);
       setFilteredContacts(fetchedContacts);
       applyFilters(opportunities);
+  
+      if (preselectedContactId) {
+        const preselectedContact = fetchedContacts.find((c) => c.id === preselectedContactId);
+        if (preselectedContact) {
+          setPreselectedContactName(preselectedContact.name);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch initial data:', error);
       setErrorMessage('Failed to load data. Please try again.');
@@ -141,12 +168,19 @@ const Opportunities = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(`/api/contacts/get/${contactId}`, { headers: { Authorization: `Bearer ${token}` } });
+      console.log('Fetched contact by ID:', response.data); // Check company here
       return response.data;
     } catch (error) {
       console.error('Failed to fetch contact by ID:', error);
       setErrorMessage('Failed to load contact. Please try again.');
       return null;
     }
+  };
+
+  const getInitials = (name = '') => {
+    if (!name) return '??';
+    const names = name.split(' ');
+    return names.map((n) => n.charAt(0)).join('').toUpperCase().slice(0, 2);
   };
 
   const handleShowPopup = async () => {
@@ -158,10 +192,12 @@ const Opportunities = () => {
         if (contact) {
           setContacts((prev) => [...prev, contact]);
           setFilteredContacts((prev) => [...prev, contact]);
+          setPreselectedContactName(contact.name);
         }
+      } else {
+        setPreselectedContactName(contact.name);
       }
       if (contact) {
-        setPreselectedContactName(contact.name);
         setFormData((prev) => ({ ...prev, contactId: contact.id }));
         setShowAssignPopup(true);
       } else {
@@ -182,6 +218,8 @@ const Opportunities = () => {
     debouncedSetShowForm(false);
     setShowAssignPopup(true);
   };
+
+  const getRandomColor = () => '#b0b0b0';
 
   const applyFilters = (opportunities) => {
     let filtered = [...opportunities];
@@ -206,6 +244,14 @@ const Opportunities = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (editingOpportunityId) {
+      setShowUpdateModal(true); // Show confirmation for updates
+    } else {
+      await confirmUpdate(); // Directly create without confirmation
+    }
+  };
+
+  const confirmUpdate = async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -221,12 +267,15 @@ const Opportunities = () => {
         await axios.put(`http://localhost:8080/api/opportunities/update/${editingOpportunityId}`, data, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        setSuccessMessage(`Opportunity "${formData.title}" updated successfully!`);
       } else {
         await axios.post('http://localhost:8080/api/opportunities/add', data, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        setSuccessMessage(`Opportunity "${formData.title}" created successfully!`);
       }
       debouncedSetShowForm(false);
+      setShowUpdateModal(false);
       setFormData({ id: null, title: '', value: 0, contactId: '', priority: 'MEDIUM', progress: 0, stage: 'PROSPECTION' });
       setContactSearch('');
       setPreselectedContactName('');
@@ -242,21 +291,28 @@ const Opportunities = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this opportunity?')) {
-      setIsLoading(true);
-      try {
-        const token = localStorage.getItem('token');
-        await axios.delete(`http://localhost:8080/api/opportunities/delete/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        await fetchInitialData();
-      } catch (error) {
-        console.error('Failed to delete opportunity:', error);
-        setErrorMessage('Failed to delete opportunity. Please try again.');
-      } finally {
-        setIsLoading(false);
-      }
+  const handleDelete = (id) => {
+    const opportunity = allOpportunities.find((opp) => opp.id === id);
+    setOpportunityToDelete(opportunity);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`http://localhost:8080/api/opportunities/delete/${opportunityToDelete.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSuccessMessage(`Opportunity "${opportunityToDelete.title}" deleted successfully!`);
+      setShowDeleteModal(false);
+      setOpportunityToDelete(null);
+      await fetchInitialData();
+    } catch (error) {
+      console.error('Failed to delete opportunity:', error);
+      setErrorMessage('Failed to delete opportunity. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -268,6 +324,7 @@ const Opportunities = () => {
         headers: { Authorization: `Bearer ${token}` },
         params: { increment: 10 }
       });
+      setSuccessMessage('Progress increased by 10% successfully!');
       await fetchInitialData();
     } catch (error) {
       console.error('Failed to increment progress:', error);
@@ -285,6 +342,7 @@ const Opportunities = () => {
         headers: { Authorization: `Bearer ${token}` },
         params: { decrement: 10 }
       });
+      setSuccessMessage('Progress decreased by 10% successfully!');
       await fetchInitialData();
     } catch (error) {
       console.error('Failed to decrement progress:', error);
@@ -302,6 +360,7 @@ const Opportunities = () => {
         headers: { Authorization: `Bearer ${token}` },
         params: { stage }
       });
+      setSuccessMessage(`Opportunity stage changed to "${stageMapping[stage]}" successfully!`);
       await fetchInitialData();
     } catch (error) {
       console.error('Failed to change stage:', error);
@@ -336,6 +395,7 @@ const Opportunities = () => {
         headers: { Authorization: `Bearer ${token}` },
         params: { contactId: Number(preselectedContactId) }
       });
+      setSuccessMessage(`Contact assigned to opportunity successfully!`);
       setShowExistingOpportunities(false);
       setPreselectedContactName('');
       navigate('/opportunities', { replace: true });
@@ -391,6 +451,95 @@ const Opportunities = () => {
     }));
   };
 
+  // Custom Modal Component
+  const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, loading }) => {
+    if (!isOpen) return null;
+
+    const getStyles = () => {
+      switch (actionType) {
+        case 'delete':
+          return {
+            icon: <FaTrash className="text-red-500 w-8 h-8" />,
+            bgColor: 'bg-red-100',
+            textColor: 'text-red-700',
+            buttonColor: 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700',
+          };
+        case 'update':
+          return {
+            icon: <FaEdit className="text-yellow-500 w-8 h-8" />,
+            bgColor: 'bg-yellow-100',
+            textColor: 'text-yellow-700',
+            buttonColor: 'bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800',
+          };
+        default:
+          return {
+            icon: <FaTrash className="text-gray-500 w-8 h-8" />,
+            bgColor: 'bg-gray-100',
+            textColor: 'text-gray-700',
+            buttonColor: 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800',
+          };
+      }
+    };
+
+    const { icon, bgColor, textColor, buttonColor } = getStyles();
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300">
+        <div className={`bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+          <div className={`flex items-center justify-center w-16 h-16 rounded-full ${bgColor} mx-auto mb-4`}>
+            {icon}
+          </div>
+          <h3 className={`text-2xl font-bold text-center ${textColor} mb-2`}>{title}</h3>
+          <p className="text-center text-gray-600 mb-6">{message}</p>
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              className={`px-6 py-2 ${buttonColor} text-white rounded-full shadow-md transition-all duration-300 flex items-center`}
+              disabled={loading}
+            >
+              {loading && <FaSpinner className="animate-spin mr-2" />}
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const handleEdit = async (opp) => {
+    let contact = contacts.find((c) => c.id === opp.contact?.id);
+    if (!contact && opp.contact?.id) {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`/api/contacts/get/${opp.contact.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        contact = response.data;
+        if (contact) {
+          setContacts((prev) => [...prev, contact]);
+          setFilteredContacts((prev) => [...prev, contact]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch contact:', error);
+      }
+    }
+
+    setFormData({
+      ...opp,
+      contactId: opp.contact?.id || null,
+    });
+    setEditingOpportunityId(opp.id);
+    debouncedSetShowForm(true);
+    setContactSearch('');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-8 font-sans antialiased rounded-[12px] border border-gray-200">
       {/* Header Section */}
@@ -414,11 +563,25 @@ const Opportunities = () => {
         </div>
       )}
 
+      {/* Success Message */}
+      {successMessage && (
+        <div className="mb-6 px-4 sm:px-6 py-4 bg-green-50 text-green-700 rounded-lg shadow-md flex items-center space-x-3 transition-all duration-300 hover:shadow-lg">
+          <FaCheck className="text-green-600" />
+          <span>{successMessage}</span>
+          <button onClick={() => setSuccessMessage(null)} className="ml-auto text-green-600 hover:text-green-800">
+            <FaTimes />
+          </button>
+        </div>
+      )}
+
       {/* Error Message */}
       {errorMessage && (
         <div className="mb-6 px-4 sm:px-6 py-4 bg-red-50 text-red-700 rounded-lg shadow-md flex items-center space-x-3 transition-all duration-300 hover:shadow-lg">
           <FaTimes className="text-red-600" />
           <span>{errorMessage}</span>
+          <button onClick={() => setErrorMessage(null)} className="ml-auto text-red-600 hover:text-red-800">
+            <FaTimes />
+          </button>
         </div>
       )}
 
@@ -657,7 +820,7 @@ const Opportunities = () => {
                             <td className="px-4 py-3">
                               <div className="flex space-x-2">
                                 <button
-                                  onClick={() => { setFormData(opp); setEditingOpportunityId(opp.id); debouncedSetShowForm(true); setContactSearch(''); }}
+                                  onClick={() => handleEdit(opp)}
                                   className="p-2 text-indigo-600 rounded-full shadow-md hover:bg-indigo-100 transition-all duration-200"
                                 >
                                   <FaEdit />
@@ -678,78 +841,68 @@ const Opportunities = () => {
           ))}
         </div>
       ) : (
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 transition-all duration-500 animate-fadeIn">
-            {stages.map((stage) => (
-              <div
-                key={stage.id}
-                className={`${stage.color} p-4 rounded-xl shadow-lg border border-gray-100/50 min-h-[200px] transition-all duration-300 hover:shadow-xl flex flex-col`}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-semibold text-gray-800 tracking-tight">{stage.name}</h2>
-                  <span className="bg-gray-800 text-white text-xs font-medium px-2 py-1 rounded-full shadow-inner">
-                    {stage.opportunities.length}
-                  </span>
-                </div>
-                <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto scrollbar-thin scrollbar-thumb-indigo-300 scrollbar-track-gray-100 flex-1">
-                  {stage.opportunities.map((opp) => (
-                    <div
-                      key={opp.id}
-                      className="relative bg-white p-4 rounded-lg shadow-md border border-gray-200/50 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg w-full overflow-hidden"
-                    >
-                      {/* Title and Expand Button (together on top line) */}
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-md font-semibold text-gray-800 tracking-tight truncate w-[80%]">
-                          {opp.title}
-                        </h3>
-                        <button
-                          onClick={() => setExpandedOpportunityId(opp.id)}
-                          className="p-1 bg-gray-200 rounded-full hover:bg-gray-300 transition-all duration-200 flex-shrink-0"
-                        >
-                          <FaExpand size={16} />
-                        </button>
-                      </div>
-        
-                      {/* Contact (own line) */}
-                      <p className="text-sm text-gray-600 font-medium truncate mb-2">
-                        Contact: {opp.contact?.name || 'None'}
-                      </p>
-        
-                      {/* Priority (own line) */}
-                      <div className="flex items-center mb-2">
-                        <span className="text-sm text-gray-600 font-medium mr-2">Priority:</span>
-                        <span
-                          className={`px-2 py-1 text-xs font-semibold rounded-full shadow-sm ${priorityColors[opp.priority]}`}
-                        >
-                          {priorityMapping[opp.priority]}
-                        </span>
-                      </div>
-        
-                      {/* Progress (own line) */}
-                      <div className="flex items-center mb-2">
-                        <span className="text-sm text-gray-600 font-medium mr-2">Progress:</span>
-                        <div className="flex items-center space-x-2">
-                          <div className="w-20 bg-gray-200/50 rounded-full h-2 shadow-inner flex-shrink-0">
-                            <div
-                              className="bg-indigo-500 h-2 rounded-full transition-all duration-500 shadow-md"
-                              style={{ width: `${opp.progress}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-indigo-600 whitespace-nowrap">{opp.progress}%</span>
-                        </div>
-                      </div>
-        
-                      {/* Creation Date (own line) */}
-                      <p className="text-xs text-gray-500 font-medium truncate">
-                        Created: {new Date(opp.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 transition-all duration-500 animate-fadeIn">
+          {stages.map((stage) => (
+            <div
+              key={stage.id}
+              className={`${stage.color} p-4 rounded-xl shadow-lg border border-gray-100/50 min-h-[200px] transition-all duration-300 hover:shadow-xl flex flex-col`}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-gray-800 tracking-tight">{stage.name}</h2>
+                <span className="bg-gray-800 text-white text-xs font-medium px-2 py-1 rounded-full shadow-inner">
+                  {stage.opportunities.length}
+                </span>
               </div>
-            ))}
-          </div>
-        )}
+              <div className="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto scrollbar-thin scrollbar-thumb-indigo-300 scrollbar-track-gray-100 flex-1">
+                {stage.opportunities.map((opp) => (
+                  <div
+                    key={opp.id}
+                    className="relative bg-white p-4 rounded-lg shadow-md border border-gray-200/50 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg w-full overflow-hidden"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="text-md font-semibold text-gray-800 tracking-tight truncate w-[80%]">
+                        {opp.title}
+                      </h3>
+                      <button
+                        onClick={() => setExpandedOpportunityId(opp.id)}
+                        className="p-1 bg-gray-200 rounded-full hover:bg-gray-300 transition-all duration-200 flex-shrink-0"
+                      >
+                        <FaExpand size={16} />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-600 font-medium truncate mb-2">
+                      Contact: {opp.contact?.name || 'None'}
+                    </p>
+                    <div className="flex items-center mb-2">
+                      <span className="text-sm text-gray-600 font-medium mr-2">Priority:</span>
+                      <span
+                        className={`px-2 py-1 text-xs font-semibold rounded-full shadow-sm ${priorityColors[opp.priority]}`}
+                      >
+                        {priorityMapping[opp.priority]}
+                      </span>
+                    </div>
+                    <div className="flex items-center mb-2">
+                      <span className="text-sm text-gray-600 font-medium mr-2">Progress:</span>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-20 bg-gray-200/50 rounded-full h-2 shadow-inner flex-shrink-0">
+                          <div
+                            className="bg-indigo-500 h-2 rounded-full transition-all duration-500 shadow-md"
+                            style={{ width: `${opp.progress}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-indigo-600 whitespace-nowrap">{opp.progress}%</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 font-medium truncate">
+                      Created: {new Date(opp.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Assign Popup */}
       {showAssignPopup && preselectedContactId && (
@@ -806,107 +959,227 @@ const Opportunities = () => {
       {showForm && formData && (
         <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
           <div ref={formRef} className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-100/50 animate-fadeIn">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 tracking-tight">{editingOpportunityId ? 'Edit Opportunity' : 'Add New Opportunity'}</h2>
-              <button onClick={preselectedContactId && !editingOpportunityId ? handleBackToAssignPopup : () => debouncedSetShowForm(false)} className="p-2 text-gray-500 rounded-full shadow-md hover:text-red-600 hover:bg-red-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-300/50">
-                <FaTimes size={24} />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Title</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="mt-1 w-full p-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder-gray-400"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
+                    focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   placeholder="Enter opportunity title"
                   required
                 />
               </div>
-              <div>
+
+              <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Contact</label>
-                <div className="relative">
-                  <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    value={contactSearch}
-                    onChange={handleContactSearch}
-                    className="mt-1 w-full pl-10 p-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder-gray-400"
-                    placeholder="Search contacts..."
-                  />
-                </div>
-                <select
-                  value={formData.contactId || ''}
-                  onChange={(e) => setFormData({ ...formData, contactId: e.target.value })}
-                  className="mt-2 w-full p-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                <div className="relative" ref={dropdownRef}>
+                  {preselectedContactId && !editingOpportunityId ? (
+                    <div className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex justify-between items-center">
+                      <span>
+                        {preselectedContactName || 'Loading...'}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                    <div
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
+                    focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 cursor-pointer flex justify-between items-center"
+                  onClick={() => setShowContactDropdown(!showContactDropdown)}
                 >
-                  <option value="">No Contact</option>
-                  {filteredContacts.map((contact) => (
-                    <option key={contact.id} value={contact.id} className="text-gray-700 font-medium">{contact.name} ({contact.email})</option>
-                  ))}
-                </select>
+                  <span className={formData.contactId ? 'text-gray-700 flex items-center space-x-3' : 'text-gray-400'}>
+                    {formData.contactId ? (
+                      <>
+                        {contacts.find((contact) => contact.id === formData.contactId)?.photoUrl ? (
+                          <img
+                            src={`${axios.defaults.baseURL}${contacts.find((contact) => contact.id === formData.contactId)?.photoUrl}`}
+                            alt={contacts.find((contact) => contact.id === formData.contactId)?.name}
+                            className="h-8 w-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div
+                            className="h-8 w-8 rounded-full flex items-center justify-center bg-gray-300 text-white text-xs font-bold"
+                          >
+                            {getInitials(contacts.find((contact) => contact.id === formData.contactId)?.name)}
+                          </div>
+                        )}
+                        <span className="ml-2">
+                          {contacts.find((contact) => contact.id === formData.contactId)?.name || 'Select a contact'}
+                          {contacts.find((contact) => contact.id === formData.contactId)?.company?.name 
+                            ? ` (${contacts.find((contact) => contact.id === formData.contactId)?.company.name})` 
+                            : ''}
+                        </span>
+                      </>
+                    ) : (
+                      'Select a contact'
+                    )}
+                  </span>
+                  <svg
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showContactDropdown ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </div>
+
+               {showContactDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  <div className="p-2 border-b border-gray-200">
+                    <div className="relative">
+                      <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        value={contactSearch}
+                        onChange={handleContactSearch}
+                        className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg 
+                          focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        placeholder="Search contacts..."
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    <div
+                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-gray-500"
+                      onClick={() => {
+                        setFormData({ ...formData, contactId: null });
+                        setShowContactDropdown(false);
+                        setContactSearch('');
+                      }}
+                    >
+                      (None)
+                    </div>
+                    {filteredContacts.length > 0 ? (
+                      filteredContacts.map((contact) => (
+                        <div
+                          key={contact.id}
+                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center space-x-3"
+                          onClick={() => {
+                            setFormData({ ...formData, contactId: contact.id });
+                            setShowContactDropdown(false);
+                            setContactSearch('');
+                          }}
+                        >
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden"
+                            style={{ backgroundColor: contact.photoUrl ? "transparent" : getRandomColor() }}
+                          >
+                            {contact.photoUrl ? (
+                              <img
+                                src={`${axios.defaults.baseURL}${contact.photoUrl}`}
+                                alt={contact.name}
+                                className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
+                              />
+                            ) : (
+                              getInitials(contact.name)
+                            )}
+                          </div>
+                          <span className="text-gray-900 font-medium">
+                            {contact.name} {contact.company?.name ? `(${contact.company.name})` : ''}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-4 py-2 text-gray-500">No contacts found</div>
+                    )}
+                  </div>
+                </div>
+              )}
+                    </>
+                  )}
+                </div>
               </div>
-              <div>
+
+              <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Value (TND)</label>
                 <input
                   type="number"
                   value={formData.value}
                   onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                  className="mt-1 w-full p-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder-gray-400"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
+                    focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   placeholder="Enter value"
                   min="0"
                   step="100"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Priority</label>
+
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-depend">Priority</label>
                 <select
                   value={formData.priority}
                   onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                  className="mt-1 w-full p-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
+                    focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 >
-                  <option value="HIGH" className="text-red-600 font-medium">High</option>
-                  <option value="MEDIUM" className="text-yellow-600 font-medium">Medium</option>
-                  <option value="LOW" className="text-green-600 font-medium">Low</option>
+                  <option value="HIGH">High</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="LOW">Low</option>
                 </select>
               </div>
-              <div>
+
+              <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Progress (%)</label>
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
                   <input
                     type="number"
                     value={formData.progress}
                     onChange={(e) => setFormData({ ...formData, progress: Math.min(100, Math.max(0, e.target.value)) })}
-                    className="mt-1 w-full p-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 placeholder-gray-400"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
+                      focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                     min="0"
                     max="100"
                   />
-                  <button type="button" onClick={() => setFormData({ ...formData, progress: Math.min(100, formData.progress + 10) })} className="p-2 bg-green-500 text-white rounded-full shadow-md hover:bg-green-600 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-300/50">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, progress: Math.min(100, formData.progress + 10) })}
+                    className="p-2 bg-green-500 text-white rounded-full shadow-md hover:bg-green-600 transition-all duration-200"
+                  >
                     <FaArrowUp />
                   </button>
-                  <button type="button" onClick={() => setFormData({ ...formData, progress: Math.max(0, formData.progress - 10) })} className="p-2 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-300/50">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, progress: Math.max(0, formData.progress - 10) })}
+                    className="p-2 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600 transition-all duration-200"
+                  >
                     <FaArrowDown />
                   </button>
                 </div>
               </div>
-              <div>
+
+              <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Stage</label>
                 <select
                   value={formData.stage}
                   onChange={(e) => setFormData({ ...formData, stage: e.target.value })}
-                  className="mt-1 w-full p-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
+                    focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 >
                   {Object.keys(stageMapping).map((key) => (
-                    <option key={key} value={key} className="text-gray-700 font-medium">{stageMapping[key]}</option>
+                    <option key={key} value={key}>{stageMapping[key]}</option>
                   ))}
                 </select>
               </div>
-              <div className="flex justify-end space-x-4">
-                <button type="button" onClick={preselectedContactId && !editingOpportunityId ? handleBackToAssignPopup : () => debouncedSetShowForm(false)} className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-200 text-gray-700 rounded-lg shadow-md hover:bg-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300/50">
-                  Close
+
+              <div className="md:col-span-2 flex justify-end space-x-4">
+                <button
+                  type="button"
+                  onClick={preselectedContactId && !editingOpportunityId ? handleBackToAssignPopup : () => debouncedSetShowForm(false)}
+                  className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full 
+                    hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+                >
+                  Cancel
                 </button>
-                <button type="submit" className="px-4 sm:px-6 py-2 sm:py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-300/50">
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full 
+                    hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
+                >
                   {editingOpportunityId ? 'Update' : 'Create'}
                 </button>
               </div>
@@ -917,14 +1190,21 @@ const Opportunities = () => {
 
       {/* Expanded Opportunity Details */}
       {expandedOpportunityId && (
-        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setExpandedOpportunityId(null)}>
-          <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+        <div
+          className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 
+            ${expandedOpportunityId ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
+          onClick={() => setExpandedOpportunityId(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg transform transition-all duration-300 scale-95 animate-scaleIn"
+            onClick={(e) => e.stopPropagation()}
+          >
             <OpportunityDetails
               opportunity={allOpportunities.find(opp => opp.id === expandedOpportunityId)}
               onClose={() => setExpandedOpportunityId(null)}
               onEdit={() => {
                 const opp = allOpportunities.find(opp => opp.id === expandedOpportunityId);
-                setFormData(opp);
+                setFormData({ ...opp, contactId: opp.contact?.id || null });
                 setEditingOpportunityId(opp.id);
                 debouncedSetShowForm(true);
                 setExpandedOpportunityId(null);
@@ -940,6 +1220,28 @@ const Opportunities = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <CustomModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title="Delete Opportunity"
+        message={`Are you sure you want to delete "${opportunityToDelete?.title}"? This action cannot be undone.`}
+        actionType="delete"
+        loading={isLoading}
+      />
+
+      {/* Update Confirmation Modal */}
+      <CustomModal
+        isOpen={showUpdateModal}
+        onClose={() => setShowUpdateModal(false)}
+        onConfirm={confirmUpdate}
+        title="Update Opportunity"
+        message={`Are you sure you want to update "${formData.title}"?`}
+        actionType="update"
+        loading={isLoading}
+      />
     </div>
   );
 };
@@ -973,65 +1275,117 @@ const OpportunityDetails = ({ opportunity, onClose, onEdit, onDelete, onChangeSt
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">{opportunity.title}</h2>
-        <button onClick={onClose} className="text-gray-500 hover:text-red-600 transition-all duration-200">
-          <FaTimes size={24} />
+    <div>
+      {/* Header with Title and Close Button */}
+      <div className="flex justify-between items-start mb-6">
+        <h2 className="text-2xl font-bold text-gray-800">
+          {opportunity.title}
+        </h2>
+        <button
+          onClick={onClose}
+          className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
+        >
+          <FaTimes className="w-5 h-5" />
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <p className="text-sm text-gray-600">Value</p>
-          <p className="text-lg font-semibold text-indigo-600">{formatCurrency(opportunity.value)}</p>
+
+      {/* Opportunity Details */}
+      <div className="space-y-4 text-gray-700">
+        {/* Value */}
+        <div className="flex items-center space-x-3">
+          <FaChartLine className="text-gray-400" />
+          <div>
+            <span className="font-medium">Value: </span>
+            <span className="text-indigo-600 font-medium">{formatCurrency(opportunity.value)}</span>
+          </div>
         </div>
-        <div>
-          <p className="text-sm text-gray-600">Priority</p>
-          <span className={`px-2 py-1 text-xs rounded-full ${priorityColors[opportunity.priority]}`}>
-            {priorityMapping[opportunity.priority]}
+
+        {/* Priority */}
+        <div className="flex items-center space-x-3">
+          <FaTag className="text-gray-400" />
+          <div>
+            <span className="font-medium">Priority: </span>
+            <span className={`px-2 py-1 text-xs font-medium rounded-full ${priorityColors[opportunity.priority]}`}>
+              {priorityMapping[opportunity.priority]}
+            </span>
+          </div>
+        </div>
+
+        {/* Contact */}
+        <div className="flex items-center space-x-3">
+          <FaUser className="text-gray-400" />
+          <span>
+            <span className="font-medium">Contact: </span>
+            {opportunity.contact?.name || 'None'}
           </span>
         </div>
-        <div>
-          <p className="text-sm text-gray-600">Contact</p>
-          <p className="text-lg font-medium text-gray-800">{opportunity.contact?.name || 'None'}</p>
+
+        {/* Stage */}
+        <div className="flex items-center space-x-3">
+          <FaList className="text-gray-400" />
+          <div>
+            <span className="font-medium">Stage: </span>
+            <select
+              value={opportunity.stage}
+              onChange={(e) => onChangeStage(e.target.value)}
+              className="p-1 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
+            >
+              {Object.keys(stageMapping).map((key) => (
+                <option key={key} value={key}>{stageMapping[key]}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div>
-          <p className="text-sm text-gray-600">Stage</p>
-          <select
-            value={opportunity.stage}
-            onChange={(e) => onChangeStage(e.target.value)}
-            className="p-2 bg-gray-100 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-          >
-            {Object.keys(stageMapping).map((key) => (
-              <option key={key} value={key}>{stageMapping[key]}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <p className="text-sm text-gray-600">Progress</p>
+
+        {/* Progress */}
+        <div className="flex items-center space-x-3">
+          <FaChartBar className="text-gray-400" />
           <div className="flex items-center space-x-2">
-            <div className="w-32 bg-gray-200 rounded-full h-2">
-              <div className="bg-indigo-500 h-2 rounded-full" style={{ width: `${opportunity.progress}%` }} />
+            <span className="font-medium">Progress: </span>
+            <div className="w-24 bg-gray-200/50 rounded-full h-2 shadow-inner">
+              <div
+                className="bg-indigo-500 h-2 rounded-full transition-all duration-500 shadow-md"
+                style={{ width: `${opportunity.progress}%` }}
+              />
             </div>
             <span className="text-sm text-indigo-600">{opportunity.progress}%</span>
-            <button onClick={onIncrementProgress} className="p-1 bg-green-500 text-white rounded-full hover:bg-green-600 transition-all duration-200">
-              <FaArrowUp />
+            <button
+              onClick={onIncrementProgress}
+              className="p-1 bg-green-500 text-white rounded-full shadow-md hover:bg-green-600 transition-all duration-200"
+            >
+              <FaArrowUp size={12} />
             </button>
-            <button onClick={onDecrementProgress} className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all duration-200">
-              <FaArrowDown />
+            <button
+              onClick={onDecrementProgress}
+              className="p-1 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600 transition-all duration-200"
+            >
+              <FaArrowDown size={12} />
             </button>
           </div>
         </div>
-        <div>
-          <p className="text-sm text-gray-600">Created At</p>
-          <p className="text-lg font-medium text-gray-800">{new Date(opportunity.createdAt).toLocaleDateString()}</p>
+
+        {/* Created At */}
+        <div className="flex items-center space-x-3">
+          <FaCalendarAlt className="text-gray-400" />
+          <span>
+            <span className="font-medium">Created At: </span>
+            {new Date(opportunity.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </span>
         </div>
       </div>
-      <div className="flex justify-end space-x-4">
-        <button onClick={onEdit} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-200 flex items-center">
+
+      {/* Action Buttons */}
+      <div className="flex justify-end space-x-3 mt-6">
+        <button
+          onClick={onEdit}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-all duration-200 flex items-center"
+        >
           <FaEdit className="mr-2" /> Edit
         </button>
-        <button onClick={onDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 flex items-center">
+        <button
+          onClick={onDelete}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition-all duration-200 flex items-center"
+        >
           <FaTrash className="mr-2" /> Delete
         </button>
       </div>

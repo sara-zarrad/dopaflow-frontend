@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FaPlus, FaSearch, FaFilter, FaTrash, FaEdit, FaDownload,
   FaSpinner, FaUser, FaEnvelope, FaPhone, FaBuilding, FaStickyNote,
-  FaUndo, FaUpload, FaClock, FaCalendarAlt, FaInfoCircle, FaTimes
+  FaUndo, FaUpload, FaClock, FaCalendarAlt, FaInfoCircle, FaTimes, FaExclamationTriangle
 } from 'react-icons/fa';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Select from 'react-select';
 
 // Axios config
@@ -20,38 +20,181 @@ const getInitials = (name = '') => {
 };
 
 const getRandomColor = () => '#b0b0b0';
-
-// Custom Styles
 const customStyles = `
-  .custom-checkbox {
-    appearance: none;
-    width: 20px;
-    height: 20px;
-    border: 2px solid #ccc;
-    border-radius: 4px;
+  .form-container {
+    background: linear-gradient(to bottom right, #ffffff, #f9fafb);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  .form-label {
+    display: block;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+  }
+  .form-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    background: #ffffff;
+    font-size: 0.9rem;
+    color: #374151;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  .form-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+  .form-input:hover {
+    border-color: #93c5fd;
+  }
+  .form-textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    background: #ffffff;
+    font-size: 0.9rem;
+    color: #374151;
+    min-height: 6rem;
+    resize: vertical;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  .form-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+  .form-textarea:hover {
+    border-color: #93c5fd;
+  }
+  .form-file-container {
     position: relative;
+    width: 100%;
+  }
+  .form-file-input {
+    opacity: 0;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+  .form-file-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px dashed #d1d5db;
+    border-radius: 0.5rem;
+    background: #f9fafb;
+    color: #6b7280;
+    font-size: 0.9rem;
+    text-align: center;
     cursor: pointer;
     transition: all 0.2s ease;
-    background-color: transparent;
   }
-  .custom-checkbox:checked {
-    border-color: #006400;
-    background-color: transparent;
+  .form-file-label:hover {
+    border-color: #93c5fd;
+    background: #eff6ff;
+    color: #3b82f6;
   }
-  .custom-checkbox:checked::after {
-    content: '';
+  .form-file-label.dragover {
+    border-color: #3b82f6;
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  .form-photo-preview {
+    position: relative;
+    display: inline-block;
+    margin-top: 0.5rem;
+  }
+  .form-photo-img {
+    width: 5rem;
+    height: 5rem;
+    object-fit: cover;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  }
+  .form-photo-remove {
     position: absolute;
-    left: 4.9px;
-    top: 1px;
-    width: 6px;
-    height: 12px;
-    border: solid #006400;
-    border-width: 0 3px 3px 0;
-    transform: rotate(45deg);
+    top: -0.5rem;
+    right: -0.5rem;
+    background: #ef4444;
+    color: white;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
   }
-  .custom-checkbox:hover {
-    border-color: #006400;
+  .form-photo-remove:hover {
+    background: #dc2626;
   }
+  .form-button {
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  }
+  .form-button-primary {
+    background: linear-gradient(to right, #3b82f6, #2563eb);
+    color: white;
+  }
+  .form-button-primary:hover {
+    background: linear-gradient(to right, #2563eb, #1e40af);
+  }
+  .form-button-secondary {
+    background: #e5e7eb;
+    color: #374151;
+  }
+  .form-button-secondary:hover {
+    background: #d1d5db;
+  }
+  .form-select-container {
+    position: relative;
+  }
+    .form-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: scroll; /* Allows form to scroll inside */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+.form-overlay > div {
+  margin: auto; /* Keeps form centered */
+}
+  .no-scroll {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto; /* Form scrolls, not background */
+}
+body:has(.no-scroll) {
+  overflow: hidden; /* Locks body scroll */
+}
 `;
 
 // Debounce utility
@@ -76,7 +219,7 @@ const Contacts = () => {
     name: '', email: '', phone: '', status: '', owner: null, company: null, notes: '', photo: null, photoUrl: '',
   });
   const [users, setUsers] = useState([]);
-  const [companies, setCompanies] = useState([]); // New state for companies
+  const [companies, setCompanies] = useState([]);
   const [selectedContact, setSelectedContact] = useState(null);
   const [editingContactId, setEditingContactId] = useState(null);
   const [currentPage, setCurrentPage] = useState(0);
@@ -96,12 +239,47 @@ const Contacts = () => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [totalContacts, setTotalContacts] = useState(0);
   const [selectedContacts, setSelectedContacts] = useState(new Set());
+  const [previewData, setPreviewData] = useState(null);
+  const [selectedColumns, setSelectedColumns] = useState([]);
+  const [updateExisting, setUpdateExisting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [modalConfig, setModalConfig] = useState({ isOpen: false, onConfirm: null, title: '', message: '', actionType: '' });
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Debounced setSelectedContact
   const debouncedSetSelectedContact = debounce((contact) => {
     setSelectedContact(contact);
   }, 200);
+
+  // Handle newCompanyId from Companies.jsx
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const newCompanyId = params.get('newCompanyId');
+    const canceledFromCompanies = params.get('canceledFromCompanies');
+  
+    if (newCompanyId || canceledFromCompanies) {
+      const pendingData = JSON.parse(localStorage.getItem('pendingContactData') || '{}');
+      const restoredOwner = pendingData.owner ? users.find(u => u.id === pendingData.owner.id) : null;
+      const restoredCompany = newCompanyId
+        ? companies.find(c => c.id === parseInt(newCompanyId, 10))
+        : (pendingData.company ? companies.find(c => c.id === pendingData.company.id) : null);
+  
+      setFormData({
+        ...pendingData,
+        owner: restoredOwner,
+        company: restoredCompany,
+        photo: null,
+        photoUrl: '',
+      });
+      setShowForm(true);
+      // Preserve editingContactId if it exists
+      if (pendingData.id) {
+        setEditingContactId(pendingData.id);
+      }
+      // Don’t navigate away—keep newCompanyId in URL
+    }
+  }, [location.search, companies, users]);
 
   // Fetch Functions
   const getBaseParams = useCallback(() => ({
@@ -202,7 +380,7 @@ const Contacts = () => {
       const token = localStorage.getItem('token');
       const response = await axios.get('/api/companies/all', {
         headers: { Authorization: `Bearer ${token}` },
-        params: { page: 0, size: 1000, sort: 'name,asc' } // Fetch all companies (adjust size as needed)
+        params: { page: 0, size: 1000, sort: 'name,asc' }
       });
       setCompanies(response.data.content || []);
     } catch (err) {
@@ -217,7 +395,7 @@ const Contacts = () => {
 
   useEffect(() => {
     fetchUsers();
-    fetchCompanies(); // Fetch companies on mount
+    fetchCompanies();
   }, [fetchUsers, fetchCompanies]);
 
   useEffect(() => {
@@ -282,7 +460,7 @@ const Contacts = () => {
     try {
       const token = localStorage.getItem('token');
       let photoUrl = formData.photoUrl;
-
+  
       if (formData.photo) {
         const photoData = new FormData();
         photoData.append('file', formData.photo);
@@ -292,20 +470,40 @@ const Contacts = () => {
         });
         photoUrl = uploadRes.data.photoUrl;
       }
-
+  
       const contactData = {
         ...formData,
         photoUrl,
         owner: formData.owner ? { id: formData.owner.id } : null,
-        company: formData.company ? { id: formData.company.id } : null, // Send company as an object with id
+        company: formData.company ? { id: formData.company.id } : null,
       };
       const response = editingContactId
         ? await axios.put(`/api/contacts/update/${editingContactId}`, contactData, { headers: { Authorization: `Bearer ${token}` } })
         : await axios.post('/api/contacts/add', contactData, { headers: { Authorization: `Bearer ${token}` } });
-
+  
       setContacts((prev) => editingContactId ? prev.map(c => c.id === editingContactId ? response.data : c) : [response.data, ...prev]);
       setMessage(editingContactId ? 'Contact updated!' : 'Contact added!');
-      resetForm();
+  
+      // Check if we're coming back from Companies with a newCompanyId
+      const params = new URLSearchParams(location.search);
+      const newCompanyId = params.get('newCompanyId');
+  
+      if (newCompanyId) {
+        // If we have a newCompanyId, keep the form open with the updated data
+        const updatedCompany = companies.find(c => c.id === parseInt(newCompanyId, 10));
+        setFormData(prev => ({
+          ...prev,
+          company: updatedCompany ? { id: updatedCompany.id, name: updatedCompany.name } : prev.company,
+        }));
+        setShowForm(true); // Ensure form stays open
+        navigate(`/contacts?newCompanyId=${newCompanyId}`); // Keep newCompanyId in URL
+      } else {
+        // Normal save (no company redirect), reset and close form
+        localStorage.removeItem('pendingContactData');
+        navigate('/contacts');
+        resetForm();
+      }
+  
       fetchContacts();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save contact');
@@ -314,46 +512,114 @@ const Contacts = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this contact?')) return;
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`/api/contacts/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-      setContacts((prev) => prev.filter(c => c.id !== id));
-      setMessage('Contact deleted!');
-      setSelectedContact(null);
-      fetchContacts();
-    } catch (err) {
-      setError('Failed to delete contact');
-    } finally {
-      setLoading(false);
-    }
+  const handleCancel = () => {
+    localStorage.removeItem('pendingContactData'); // Fixed from 'pendingCompanyData'
+    navigate('/contacts');
+    resetForm();
   };
 
-  const handleImport = async (e) => {
-    e.preventDefault();
+  const handleDelete = (id) => {
+    setModalConfig({
+      isOpen: true,
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const token = localStorage.getItem('token');
+          await axios.delete(`/api/contacts/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+          setContacts((prev) => prev.filter(c => c.id !== id));
+          setMessage('Contact deleted!');
+          setSelectedContact(null);
+          fetchContacts();
+        } catch (err) {
+          setError('Failed to delete contact');
+        } finally {
+          setLoading(false);
+          setModalConfig({ ...modalConfig, isOpen: false });
+        }
+      },
+      title: 'Delete Contact',
+      message: 'Are you sure you want to delete this contact? This action cannot be undone.',
+      actionType: 'delete',
+    });
+  };
+
+  const handlePreview = async () => {
     if (!importFile) {
-      setError('Please select a file to import.');
+      setError('Please select a file to preview.');
       return;
     }
 
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
+      if (!token) throw new Error('No token found. Please log in.');
+
       const formData = new FormData();
       formData.append('file', importFile);
       formData.append('type', importType);
 
-      const response = await axios.post('/api/contacts/import', formData, {
+      const response = await axios.post('/api/contacts/preview', formData, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
       });
 
-      setMessage(response.data.message);
+      console.log('Preview API response:', response.data);
+
+      if (!response.data || !Array.isArray(response.data.headers) || !Array.isArray(response.data.contacts)) {
+        console.error('Invalid preview data structure:', response.data);
+        throw new Error('Invalid preview data structure. Expected headers and contacts arrays.');
+      }
+
+      setPreviewData(response.data);
+      setSelectedColumns(response.data.headers.map(header => header.toLowerCase()));
+      setError(null);
+    } catch (err) {
+      console.error('Preview error:', err);
+      setError('Failed to preview contacts: ' + (err.response?.data?.error || err.message));
+      setPreviewData(null);
+      setSelectedColumns([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImportConfirm = async () => {
+    if (!previewData || !previewData.contacts) {
+      setError('No valid preview data available to import.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No token found. Please log in.');
+
+      const formData = new FormData();
+      formData.append('file', importFile);
+      formData.append('type', importType);
+      formData.append('updateExisting', updateExisting);
+      formData.append('selectedColumns', JSON.stringify(selectedColumns));
+
+      const totalContacts = previewData.contacts.length;
+      let importedCount = 0;
+
+      const response = await axios.post('/api/contacts/import', formData, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+          setImportProgress(progress);
+          importedCount = Math.round((progress / 100) * totalContacts);
+        },
+      });
+
+      setMessage(response.data.message || 'Contacts imported successfully!');
       setShowImportModal(false);
+      setPreviewData(null);
+      setSelectedColumns([]);
+      setImportProgress(0);
       setImportFile(null);
       fetchContacts();
     } catch (err) {
+      console.error('Import error:', err);
       setError('Failed to import contacts: ' + (err.response?.data?.error || err.message));
     } finally {
       setLoading(false);
@@ -367,6 +633,8 @@ const Contacts = () => {
   const confirmExport = async () => {
     try {
       const token = localStorage.getItem('token');
+      if (!token) throw new Error('No token found. Please log in.');
+
       const columns = 'name,email,phone,status,createdAt,owner,company';
       const response = await axios.get('/api/contacts/export', {
         headers: { Authorization: `Bearer ${token}` },
@@ -382,6 +650,7 @@ const Contacts = () => {
       setMessage('Contacts exported successfully!');
       setShowExportModal(false);
     } catch (err) {
+      console.error('Export error:', err);
       setError('Failed to export contacts: ' + (err.response?.data?.error || err.message));
       setShowExportModal(false);
     }
@@ -391,6 +660,21 @@ const Contacts = () => {
     setShowForm(false);
     setEditingContactId(null);
     setFormData({ name: '', email: '', phone: '', status: '', owner: null, company: null, notes: '', photo: null, photoUrl: '' });
+  };
+
+  const handleCreateCompanyRedirect = () => {
+    const serializableFormData = {
+      id: editingContactId || null, // Include ID for edits
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      status: formData.status,
+      owner: formData.owner ? { id: formData.owner.id } : null,
+      company: formData.company ? { id: formData.company.id } : null,
+      notes: formData.notes,
+    };
+    localStorage.setItem('pendingContactData', JSON.stringify(serializableFormData));
+    navigate('/companies?fromContacts=true');
   };
 
   const ownerOptions = [
@@ -448,25 +732,35 @@ const Contacts = () => {
     }
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = () => {
     if (!selectedContacts.size) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedContacts.size} selected contact(s)?`)) return;
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      await Promise.all([...selectedContacts].map(id =>
-        axios.delete(`/api/contacts/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } })
-      ));
-      setContacts(prev => prev.filter(c => !selectedContacts.has(c.id)));
-      setMessage(`${selectedContacts.size} contact(s) deleted!`);
-      setSelectedContacts(new Set());
-      setSelectedContact(null);
-      fetchContacts();
-    } catch (err) {
-      setError('Failed to delete selected contacts: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
+
+    setModalConfig({
+      isOpen: true,
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const token = localStorage.getItem('token');
+          await Promise.all([...selectedContacts].map(id =>
+            axios.delete(`/api/contacts/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+          ));
+          setContacts(prev => prev.filter(c => !selectedContacts.has(c.id)));
+          setMessage(`${selectedContacts.size} contact(s) deleted!`);
+          setSelectedContacts(new Set());
+          setSelectedContact(null);
+          fetchContacts();
+        } catch (err) {
+          console.error('Delete selected error:', err);
+          setError('Failed to delete selected contacts: ' + err.message);
+        } finally {
+          setLoading(false);
+          setModalConfig({ ...modalConfig, isOpen: false });
+        }
+      },
+      title: 'Delete Selected Contacts',
+      message: `Are you sure you want to delete ${selectedContacts.size} selected contact(s)? This action cannot be undone.`,
+      actionType: 'delete',
+    });
   };
 
   const handleCreateOpportunity = () => {
@@ -481,6 +775,61 @@ const Contacts = () => {
       console.log('Navigating to Opportunities with contact:', selectedContact);
       navigate(`/opportunities?assign=true&contactId=${selectedContact.id}`);
     }
+  };
+
+  // Custom Modal Component
+  const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, loading }) => {
+    if (!isOpen) return null;
+
+    const getStyles = () => {
+      switch (actionType) {
+        case 'delete':
+          return {
+            icon: <FaTrash className="text-red-500 w-8 h-8" />,
+            bgColor: 'bg-red-100',
+            textColor: 'text-red-700',
+            buttonColor: 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700',
+          };
+        default:
+          return {
+            icon: <FaExclamationTriangle className="text-gray-500 w-8 h-8" />,
+            bgColor: 'bg-gray-100',
+            textColor: 'text-gray-700',
+            buttonColor: 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800',
+          };
+      }
+    };
+
+    const { icon, bgColor, textColor, buttonColor } = getStyles();
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300">
+        <div className={`bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+          <div className={`flex items-center justify-center w-16 h-16 rounded-full ${bgColor} mx-auto mb-4`}>
+            {icon}
+          </div>
+          <h3 className={`text-2xl font-bold text-center ${textColor} mb-2`}>{title}</h3>
+          <p className="text-center text-gray-600 mb-6">{message}</p>
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              className={`px-6 py-2 ${buttonColor} text-white rounded-full shadow-md transition-all duration-300 flex items-center`}
+              disabled={loading}
+            >
+              {loading && <FaSpinner className="animate-spin mr-2" />}
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Render
@@ -664,7 +1013,7 @@ const Contacts = () => {
                       onChange={handleSelectAll}
                     />
                   </th>
-                  {['name', 'email', 'phone', 'owner', 'status', 'createdAt'].map(col => (
+                  {['name', 'email', 'phone', 'owner', 'status', 'company', 'createdAt'].map(col => (
                     <th
                       key={col}
                       onClick={() => {
@@ -729,6 +1078,7 @@ const Contacts = () => {
                       ) : 'Unassigned'}
                     </td>
                     <td className="px-6 py-4 text-gray-700">{contact.status || 'N/A'}</td>
+                    <td className="px-6 py-4 text-gray-700">{contact.company?.name || 'N/A'}</td>
                     <td className="px-6 py-4 text-gray-700">{new Date(contact.createdAt).toLocaleDateString()}</td>
                   </tr>
                 ))}
@@ -884,15 +1234,22 @@ const Contacts = () => {
         {/* Import Modal */}
         {showImportModal && (
           <div className="fixed inset-0 bg-gray-800 bg-opacity-60 flex items-center justify-center h-screen" style={{ zIndex: 9990 }}>
-            <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm relative transform hover:scale-102 transition-all duration-300 border-t-4 border-purple-500">
+            <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-3xl max-h-[70vh] overflow-y-auto relative transform hover:scale-102 transition-all duration-300 border-t-4 border-purple-500">
               <button
-                onClick={() => setShowImportModal(false)}
+                onClick={() => {
+                  setShowImportModal(false);
+                  setPreviewData(null);
+                  setSelectedColumns([]);
+                  setImportProgress(0);
+                  setImportFile(null);
+                  setError(null);
+                }}
                 className="absolute top-4 right-4 text-gray-600 hover:text-red-500 text-2xl font-bold transition-colors duration-200"
               >
                 ✕
               </button>
               <h2 className="text-2xl font-bold mb-6 text-gray-900">Import Contacts</h2>
-              <form onSubmit={handleImport} className="space-y-4">
+              <div className="space-y-4">
                 <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-4 shadow-sm">
                   <label className="block text-gray-700 font-semibold mb-2">File Type</label>
                   <select
@@ -912,26 +1269,102 @@ const Contacts = () => {
                     onChange={(e) => setImportFile(e.target.files[0])}
                     className="w-full text-gray-800 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition-all duration-200"
                   />
-                  <p className="text-xs text-gray-500 mt-2">Headers: Name, Email, Phone, Status, Company, Notes, Owner</p>
+                  <p className="text-xs text-gray-500 mt-2">Expected Headers: Name, Email, Phone, Status, Company, Notes, Owner</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="updateExisting"
+                    checked={updateExisting}
+                    onChange={(e) => setUpdateExisting(e.target.checked)}
+                    className="custom-checkbox"
+                  />
+                  <label htmlFor="updateExisting" className="text-gray-700">Update existing contacts</label>
                 </div>
                 <div className="flex justify-end space-x-4">
                   <button
-                    type="button"
-                    onClick={() => setShowImportModal(false)}
-                    className="px-4 py-2 bg-gray-200 rounded-xl hover:bg-gray-300 text-gray-800 font-semibold transition-colors duration-200 shadow-md hover:shadow-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 font-semibold transition-colors duration-200 flex items-center shadow-md hover:shadow-lg"
+                    onClick={handlePreview}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 font-semibold transition-colors duration-200 flex items-center shadow-md hover:shadow-lg"
                     disabled={loading}
                   >
-                    {loading && <FaSpinner className="animate-spin mr-2" />}
-                    Import
+                    {loading && !previewData && <FaSpinner className="animate-spin mr-2" />}
+                    Upload for Preview
                   </button>
                 </div>
-              </form>
+                {previewData && previewData.headers && previewData.headers.length > 0 && previewData.contacts && previewData.contacts.length > 0 ? (
+                  <div className="mt-4">
+                    <h3 className="text-lg font-semibold mb-2 text-gray-900">Preview of Contacts to be Imported</h3>
+                    {previewData.unmappedFields && previewData.unmappedFields.length > 0 && (
+                      <p className="text-yellow-600 mb-2">
+                        Unmapped columns (added to notes): {previewData.unmappedFields.join(', ')}
+                      </p>
+                    )}
+                    <div className="mb-4">
+                      <label className="block text-gray-700 font-semibold mb-2">Select Columns to Import</label>
+                      <div className="flex flex-wrap gap-3">
+                        {previewData.headers.map(header => (
+                          <label key={header} className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedColumns.includes(header.toLowerCase())}
+                              onChange={(e) => {
+                                setSelectedColumns(prev =>
+                                  e.target.checked ? [...prev, header.toLowerCase()] : prev.filter(col => col !== header.toLowerCase())
+                                );
+                              }}
+                              className="custom-checkbox"
+                            />
+                            <span className="text-sm text-gray-700">{header}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-gray-700 font-semibold mb-2">Contacts to be Created</label>
+                      <select multiple className="preview-select" size="5">
+                        {previewData.contacts.map((contact, index) => (
+                          <option key={index} value={index}>
+                            {contact.name || 'Unnamed'} (Email: {contact.email || 'N/A'}, Phone: {contact.phone || 'N/A'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {importProgress > 0 && (
+                      <div className="mt-4">
+                        <label className="block text-gray-700 font-semibold">Import Progress</label>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div className="bg-purple-600 h-2.5 rounded-full" style={{ width: `${importProgress}%` }}></div>
+                        </div>
+                        <p className="text-sm text-gray-600">{Math.round(importProgress)}%</p>
+                      </div>
+                    )}
+                    <div className="fixed-buttons">
+                      <button
+                        onClick={() => {
+                          setPreviewData(null);
+                          setSelectedColumns([]);
+                          setImportProgress(0);
+                        }}
+                        className="px-4 py-2 bg-gray-200 rounded-xl hover:bg-gray-300 text-gray-800 font-semibold transition-colors duration-200 shadow-md hover:shadow-lg"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleImportConfirm}
+                        className="px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 font-semibold transition-colors duration-200 flex items-center shadow-md hover:shadow-lg"
+                        disabled={loading}
+                      >
+                        {loading && <FaSpinner className="animate-spin mr-2" />}
+                        Confirm Import
+                      </button>
+                    </div>
+                  </div>
+                ) : previewData ? (
+                  <div className="mt-4 text-red-600">
+                    No valid data to preview. Please check the file format and try again.
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         )}
@@ -978,209 +1411,204 @@ const Contacts = () => {
 
         {/* Contact Creation/Edit Form */}
         {showForm && (
-          <div
-            className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 ${
-              showForm ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            } z-50`}
+  <div className="fixed inset-0 bg-gray-800 bg-opacity-60 flex items-center justify-center h-screen no-scroll" style={{ zIndex: 9990 }}>
+    <div className="form-container w-full max-w-2xl relative max-h-[70vh] overflow-y-auto">
+      <button
+        onClick={resetForm}
+        className="absolute top-4 right-4 text-gray-600 hover:text-red-500 text-2xl font-bold"
+      >
+        ✕
+      </button>
+      <h2 className="text-2xl font-bold mb-6 text-gray-900">{editingContactId ? 'Edit Contact' : 'Create Contact'}</h2>
+      <form onSubmit={handleSubmit} className="form-grid">
+        <div>
+          <label className="form-label">Name</label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            className="form-input"
+            placeholder="Enter contact name"
+            required
+          />
+        </div>
+        <div>
+          <label className="form-label">Email</label>
+          <input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            className="form-input"
+            placeholder="Enter email address"
+            required
+          />
+        </div>
+        <div>
+          <label className="form-label">Phone</label>
+          <input
+            type="text"
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            className="form-input"
+            placeholder="Enter phone number"
+          />
+        </div>
+        <div>
+          <label className="form-label">Status</label>
+          <select
+            value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+            className="form-input"
           >
-            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg transform transition-all duration-300 scale-95 animate-scaleIn max-h-[80vh] overflow-y-auto">
-              {/* Header */}
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center">
-                  {editingContactId ? (
-                    <>
-                      <FaEdit className="mr-2 text-blue-600" /> Edit Contact
-                    </>
-                  ) : (
-                    <>
-                      <FaPlus className="mr-2 text-blue-600" /> New Contact
-                    </>
-                  )}
-                </h2>
-                <button
-                  onClick={resetForm}
-                  className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
-                >
-                  <FaTimes className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Form Body */}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Name Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Name</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-                    placeholder="Enter contact name"
-                    required
-                  />
-                </div>
-
-                {/* Email Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-                    placeholder="Enter email address"
-                    required
-                  />
-                </div>
-
-                {/* Phone Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Phone</label>
-                  <input
-                    type="text"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-                    placeholder="Enter phone number"
-                  />
-                </div>
-
-                {/* Status Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-                  >
-                    <option value="">Select status</option>
-                    <option value="Open">Open</option>
-                    <option value="Closed">Closed</option>
-                  </select>
-                </div>
-
-                {/* Owner Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Assigned To</label>
-                  <Select
-                    options={ownerOptions.slice(2)}
-                    value={formData.owner ? ownerOptions.find(opt => opt.value === formData.owner.id) : null}
-                    onChange={(opt) => setFormData({ ...formData, owner: opt?.user || null })}
-                    placeholder="Select a user"
-                    className="w-full text-sm"
-                    classNamePrefix="react-select"
-                    styles={{
-                      control: (provided) => ({
-                        ...provided,
-                        borderColor: '#D1D5DB',
-                        borderRadius: '0.375rem',
-                        padding: '0.125rem',
-                        boxShadow: 'none',
-                        backgroundColor: '#F9FAFB',
-                        fontSize: '0.875rem',
-                        '&:hover': { borderColor: '#9CA3AF' },
-                        '&:focus': { borderColor: '#2563EB', boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.2)' },
-                      }),
-                      placeholder: (provided) => ({
-                        ...provided,
-                        color: '#9CA3AF',
-                        fontSize: '0.875rem',
-                      }),
-                      option: (provided, state) => ({
-                        ...provided,
-                        backgroundColor: state.isFocused ? '#EFF6FF' : '#F9FAFB',
-                        color: '#1F2937',
-                        fontSize: '0.875rem',
-                        '&:hover': { backgroundColor: '#DBEAFE' },
-                      }),
-                    }}
-                    isClearable
-                  />
-                </div>
-
-                {/* Company Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Company</label>
-                  <Select
-                    options={companyOptions}
-                    value={formData.company ? companyOptions.find(opt => opt.value === formData.company.id) : null}
-                    onChange={(opt) => setFormData({ ...formData, company: opt?.company || null })}
-                    placeholder="Select a company"
-                    className="w-full text-sm"
-                    classNamePrefix="react-select"
-                    styles={{
-                      control: (provided) => ({
-                        ...provided,
-                        borderColor: '#D1D5DB',
-                        borderRadius: '0.375rem',
-                        padding: '0.125rem',
-                        boxShadow: 'none',
-                        backgroundColor: '#F9FAFB',
-                        fontSize: '0.875rem',
-                        '&:hover': { borderColor: '#9CA3AF' },
-                        '&:focus': { borderColor: '#2563EB', boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.2)' },
-                      }),
-                      placeholder: (provided) => ({
-                        ...provided,
-                        color: '#9CA3AF',
-                        fontSize: '0.875rem',
-                      }),
-                      option: (provided, state) => ({
-                        ...provided,
-                        backgroundColor: state.isFocused ? '#EFF6FF' : '#F9FAFB',
-                        color: '#1F2937',
-                        fontSize: '0.875rem',
-                        '&:hover': { backgroundColor: '#DBEAFE' },
-                      }),
-                    }}
-                    isClearable
-                  />
-                </div>
-
-                {/* Notes Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Notes</label>
-                  <textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 h-24 text-sm"
-                    placeholder="Add any notes..."
-                  />
-                </div>
-
-                {/* Photo Upload Field */}
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Photo</label>
-                  <input
-                    type="file"
-                    onChange={(e) => setFormData({ ...formData, photo: e.target.files[0] })}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm"
-                  />
-                </div>
-
-                {/* Buttons */}
-                <div className="flex justify-end space-x-3 mt-4">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-4 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300 text-sm"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center text-sm"
-                    disabled={loading}
-                  >
-                    {loading && <FaSpinner className="animate-spin mr-2" />}
-                    {editingContactId ? 'Update' : 'Add Contact'}
-                  </button>
-                </div>
-              </form>
-            </div>
+            <option value="">Select status</option>
+            <option value="Open">Open</option>
+            <option value="Closed">Closed</option>
+          </select>
+        </div>
+        <div>
+          <label className="form-label">Assigned To</label>
+          <Select
+            options={ownerOptions.slice(2)}
+            value={formData.owner ? ownerOptions.find(opt => opt.value === formData.owner.id) : null}
+            onChange={(opt) => setFormData({ ...formData, owner: opt?.user || null })}
+            placeholder="Select a user"
+            className="form-select-container"
+            styles={{
+              control: (provided) => ({
+                ...provided,
+                border: '1px solid #d1d5db',
+                borderRadius: '0.5rem',
+                padding: '0.25rem',
+                background: '#ffffff',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                '&:hover': { borderColor: '#93c5fd' },
+                '&:focus': { borderColor: '#3b82f6', boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.3)' },
+              }),
+              placeholder: (provided) => ({ ...provided, color: '#9ca3af', fontSize: '0.9rem' }),
+              option: (provided, state) => ({
+                ...provided,
+                backgroundColor: state.isFocused ? '#eff6ff' : 'white',
+                color: '#374151',
+                fontSize: '0.9rem',
+                '&:hover': { backgroundColor: '#dbeafe' },
+              }),
+            }}
+            isClearable
+          />
+        </div>
+        <div className="flex flex-col">
+          <label className="form-label">Company</label>
+          <div className="flex items-center gap-2">
+            <Select
+              options={companyOptions}
+              value={formData.company ? companyOptions.find(opt => opt.value === formData.company.id) : null}
+              onChange={(opt) => setFormData({ ...formData, company: opt?.company || null })}
+              placeholder="Select a company"
+              className="form-select-container flex-1"
+              styles={{
+                control: (provided) => ({
+                  ...provided,
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  padding: '0.25rem',
+                  background: '#ffffff',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                  '&:hover': { borderColor: '#93c5fd' },
+                  '&:focus': { borderColor: '#3b82f6', boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.3)' },
+                }),
+                placeholder: (provided) => ({ ...provided, color: '#9ca3af', fontSize: '0.9rem' }),
+                option: (provided, state) => ({
+                  ...provided,
+                  backgroundColor: state.isFocused ? '#eff6ff' : 'white',
+                  color: '#374151',
+                  fontSize: '0.9rem',
+                  '&:hover': { backgroundColor: '#dbeafe' },
+                }),
+              }}
+              isClearable
+            />
+            <button
+              type="button"
+              onClick={handleCreateCompanyRedirect}
+              className="form-button form-button-primary p-2 flex items-center justify-center"
+              title="Create new company"
+            >
+              <FaPlus />
+            </button>
           </div>
-        )}
+        </div>
+        <div className="col-span-2">
+          <label className="form-label">Notes</label>
+          <textarea
+            value={formData.notes}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            className="form-textarea"
+            placeholder="Add any notes..."
+          />
+        </div>
+        <div className="col-span-2">
+          <label className="form-label">Photo</label>
+          <div className="form-file-container">
+            <input
+              type="file"
+              id="contact-photo"
+              accept="image/*"
+              onChange={(e) => setFormData({ ...formData, photo: e.target.files[0] })}
+              className="form-file-input"
+            />
+            <label htmlFor="contact-photo" className="form-file-label">
+              {formData.photo ? formData.photo.name : 'Drag or click to upload a photo'}
+            </label>
+          </div>
+          {(formData.photo || formData.photoUrl) && (
+            <div className="form-photo-preview">
+              <img
+                src={formData.photo ? URL.createObjectURL(formData.photo) : `${axios.defaults.baseURL}${formData.photoUrl}`}
+                alt="Preview"
+                className="form-photo-img"
+              />
+              <button
+                onClick={() => setFormData({ ...formData, photo: null, photoUrl: '' })}
+                className="form-photo-remove"
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="col-span-2 flex justify-end space-x-4 pt-4">
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="form-button form-button-secondary"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="form-button form-button-primary flex items-center"
+            disabled={loading}
+          >
+            {loading && <FaSpinner className="animate-spin mr-2" />}
+            {editingContactId ? 'Update' : 'Add Contact'}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
       </div>
+      <CustomModal
+        isOpen={modalConfig.isOpen}
+        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        actionType={modalConfig.actionType}
+        loading={loading}
+      />
     </div>
   );
 };
