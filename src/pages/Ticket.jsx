@@ -3,9 +3,17 @@ import axios from 'axios';
 import { FaPaperPlane, FaTrash, FaPaperclip, FaTimes, FaInbox, FaEnvelope, FaUsers, FaLock, FaFileAlt, FaDownload, FaExpand } from 'react-icons/fa';
 import { format } from 'date-fns';
 import { useParams } from 'react-router-dom';
+import LoadingIndicator from '../pages/LoadingIndicator';
+
+const getInitials = (name = '') => {
+  if (!name) return '??';
+  const names = name.split(' ');
+  return names.map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
+};
 
 const Ticket = () => {
   const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [activeTab, setActiveTab] = useState('inbox');
   const [isComposeOpen, setIsComposeOpen] = useState(false);
@@ -24,14 +32,16 @@ const Ticket = () => {
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
+      setLoading(true);
       try {
         const response = await axios.get('http://localhost:8080/api/profile', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setCurrentUser(response.data);
       } catch (error) {
-        console.error('Failed to fetch user:', error);
         setNotification({ message: 'Failed to load user. Please log in again.', type: 'error' });
+      } finally {
+        setLoading(false);
       }
     };
     fetchCurrentUser();
@@ -39,6 +49,7 @@ const Ticket = () => {
 
   const fetchTickets = async () => {
     if (!token || !currentUser) return;
+    setLoading(true);
     try {
       const url = currentUser.role === 'SuperAdmin' 
         ? 'http://localhost:8080/api/support/tickets/all' 
@@ -54,7 +65,7 @@ const Ticket = () => {
           ...ticket.assignee,
           profilePhotoUrl: ticket.assignee.profilePhotoUrl ? `http://localhost:8080${ticket.assignee.profilePhotoUrl}` : '',
         },
-        messages: [], // No messages yet
+        messages: [],
       }));
       setTickets(ticketsWithPhotos);
 
@@ -65,6 +76,8 @@ const Ticket = () => {
     } catch (error) {
       console.error('Failed to fetch tickets:', error);
       setNotification({ message: 'Failed to load tickets.', type: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -74,6 +87,7 @@ const Ticket = () => {
 
   const fetchTicketMessages = async (ticketId) => {
     if (!token || !currentUser) return [];
+    setLoading(true);
     try {
       const response = await axios.get(`http://localhost:8080/api/support/tickets/${ticketId}/messages`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -89,6 +103,8 @@ const Ticket = () => {
       console.error(`Failed to fetch messages for ticket ${ticketId}:`, error);
       setNotification({ message: 'Failed to load messages.', type: 'error' });
       return [];
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -98,6 +114,7 @@ const Ticket = () => {
         setUserSuggestions([]);
         return;
       }
+      setLoading(true);
       try {
         const response = await axios.get(`http://localhost:8080/api/users/search?search=${searchQuery}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -110,6 +127,8 @@ const Ticket = () => {
       } catch (error) {
         console.error('Failed to fetch users:', error);
         setUserSuggestions([]);
+      } finally {
+        setLoading(false);
       }
     };
     const debounce = setTimeout(fetchUsers, 300);
@@ -151,6 +170,7 @@ const Ticket = () => {
       return;
     }
 
+    setLoading(true);
     try {
       let ticketId = selectedTicket?.id;
       if (!selectedTicket) {
@@ -211,11 +231,14 @@ const Ticket = () => {
     } catch (error) {
       console.error('Send error:', error);
       setNotification({ message: `Failed: ${error.response?.data?.message || error.message}`, type: 'error' });
+    } finally {
+      setLoading(false);
     }
     setTimeout(() => setNotification(null), 3000);
   };
 
   const handleSetStatus = async (status) => {
+    setLoading(true);
     try {
       await axios.put(`http://localhost:8080/api/support/tickets/${selectedTicket.id}/status`, { status }, {
         headers: { Authorization: `Bearer ${token}` },
@@ -227,14 +250,16 @@ const Ticket = () => {
     } catch (error) {
       console.error('Status error:', error);
       setNotification({ message: `Failed: ${error.response?.data?.message || error.message}`, type: 'error' });
+    } finally {
+      setLoading(false);
     }
     setTimeout(() => setNotification(null), 3000);
   };
 
   const handleSelectTicket = async (ticket) => {
-    setSelectedTicket(null); // Clear old data
+    setSelectedTicket(null);
     setExpandedImage(null);
-
+    setLoading(true);
     try {
       const messages = await fetchTicketMessages(ticket.id);
       const updatedTicket = {
@@ -264,6 +289,8 @@ const Ticket = () => {
     } catch (error) {
       console.error('Failed to select ticket:', error);
       setSelectedTicket({ ...ticket, messages: [] });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -284,10 +311,9 @@ const Ticket = () => {
     return fileName.split('_').slice(1).join('_') || fileName;
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-gray-100 flex items-center justify-center text-gray-600">Loading...</div>;
-
   return (
     <div className="min-h-screen bg-gray-100 p-8">
+      {loading && <LoadingIndicator />}
       {notification && (
         <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-lg text-white font-medium ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
           {notification.message}
@@ -323,7 +349,7 @@ const Ticket = () => {
             >
               <FaEnvelope /> Sent
             </button>
-            {currentUser.role === 'SuperAdmin' && (
+            {currentUser?.role === 'SuperAdmin' && (
               <button
                 onClick={() => setActiveTab('all')}
                 className={`flex-1 py-3 text-lg font-semibold flex items-center justify-center gap-2 ${activeTab === 'all' ? 'text-blue-600 border-b-4 border-blue-600' : 'text-gray-500 hover:text-blue-600'}`}
@@ -352,7 +378,7 @@ const Ticket = () => {
                   <p className="text-sm text-gray-600 mt-1">
                     From: <span className="text-blue-600 font-medium">{ticket.creator.username || ticket.creator.email}</span>
                   </p>
-                  {currentUser.role === 'SuperAdmin' && activeTab === 'all' && (
+                  {currentUser?.role === 'SuperAdmin' && activeTab === 'all' && (
                     <p className="text-sm text-gray-600 mt-1">
                       To: <span className="text-blue-600 font-medium">{ticket.assignee.username || ticket.assignee.email}</span>
                     </p>
@@ -379,7 +405,7 @@ const Ticket = () => {
                   <div className="flex items-center gap-3">
                     {selectedTicket.status !== 'CLOSED' && selectedTicket.status !== 'RESOLVED' && (
                       <>
-                        {(currentUser.role === 'SuperAdmin' || selectedTicket.creator.email === currentUser.email) && (
+                        {(currentUser?.role === 'SuperAdmin' || selectedTicket.creator.email === currentUser?.email) && (
                           <button
                             onClick={() => handleSetStatus('CLOSED')}
                             className="px-4 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-md"
@@ -387,7 +413,7 @@ const Ticket = () => {
                             Close
                           </button>
                         )}
-                        {(currentUser.role === 'SuperAdmin' || selectedTicket.assignee.email === currentUser.email) && (
+                        {(currentUser?.role === 'SuperAdmin' || selectedTicket.assignee.email === currentUser?.email) && (
                           <button
                             onClick={() => handleSetStatus('RESOLVED')}
                             className="px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-all shadow-md"
@@ -405,192 +431,207 @@ const Ticket = () => {
                   selectedTicket.messages.map(message => {
                     const images = message.attachments?.filter(isImage) || [];
                     const files = message.attachments?.filter(isFile) || [];
+                    const userName = message.sender.username || message.sender.email || '';
                     return (
                       <div key={message.id} className="p-4 bg-gray-50 rounded-xl shadow-sm hover:bg-gray-100 transition-all">
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={message.sender.profilePhotoUrl || 'https://i.sstatic.net/l60Hf.png'}
-                              alt={message.sender.username || message.sender.email}
-                              className="w-10 h-10 rounded-full object-cover shadow-sm"
-                              onError={e => (e.target.src = 'https://i.sstatic.net/l60Hf.png')}
-                            />
-                            <div>
-                              <p className="text-sm font-medium text-blue-600">{message.sender.username || message.sender.email}</p>
-                              <p className="text-xs text-gray-400">{format(new Date(message.timestamp), 'PPpp')}</p>
-                            </div>
-                          </div>
-                          {!message.read && message.sender.id !== currentUser.id && (
-                            <span className="text-xs text-white bg-red-500 rounded-full px-2 py-1">New</span>
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-700" dangerouslySetInnerHTML={{ __html: message.content }} />
-                        {images.length > 0 && (
-                          <div className="mt-3 flex flex-wrap gap-3">
-                            {images.map((url, index) => (
-                              <div key={index} className="relative">
-                                <img
-                                  src={`http://localhost:8080${url}`}
-                                  alt={`Attachment ${index}`}
-                                  className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-all shadow-sm"
-                                  onError={e => (e.target.src = 'https://via.placeholder.com/150?text=Image+Not+Found')}
-                                  onClick={() => setExpandedImage(`http://localhost:8080${url}`)}
-                                />
-                                <FaExpand className="absolute top-1 right-1 text-white bg-gray-900 bg-opacity-50 rounded-full p-1" size={16} />
+                            {message.sender.profilePhotoUrl ? (
+                                  <img
+                                    src={message.sender.profilePhotoUrl}
+                                    alt={message.sender.username || message.sender.email}
+                                    className="w-10 h-10 rounded-full object-cover shadow-sm"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-sm shadow-sm">
+                                    {getInitials(message.sender.username || message.sender.email)}
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="text-sm font-medium text-blue-600">{message.sender.username || message.sender.email}</p>
+                                  <p className="text-xs text-gray-400">{format(new Date(message.timestamp), 'PPpp')}</p>
+                                </div>
                               </div>
-                            ))}
+                              {!message.read && message.sender.id !== currentUser.id && (
+                                <span className="text-xs text-white bg-red-500 rounded-full px-2 py-1">New</span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-700" dangerouslySetInnerHTML={{ __html: message.content }} />
+                            {images.length > 0 && (
+                              <div className="mt-3 flex flex-wrap gap-3">
+                                {images.map((url, index) => (
+                                  <div key={index} className="relative">
+                                    <img
+                                      src={`http://localhost:8080${url}`}
+                                      alt={`Attachment ${index}`}
+                                      className="w-20 h-20 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-all shadow-sm"
+                                      onClick={() => setExpandedImage(`http://localhost:8080${url}`)}
+                                    />
+                                    <FaExpand className="absolute top-1 right-1 text-white bg-gray-900 bg-opacity-50 rounded-full p-1" size={16} />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {files.length > 0 && (
+                              <div className="mt-3">
+                                <p className="text-sm font-medium text-gray-700 flex items-center gap-1"><FaFileAlt /> Files ({files.length})</p>
+                                <div className="space-y-2 mt-2">
+                                  {files.map((url, index) => (
+                                    <a
+                                      key={index}
+                                      href={`http://localhost:8080${url}`}
+                                      download={cleanFileName(url)}
+                                      className="text-blue-600 hover:underline flex items-center gap-2 text-sm truncate"
+                                    >
+                                      <FaDownload /> {cleanFileName(url)}
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {files.length > 0 && (
-                          <div className="mt-3">
-                            <p className="text-sm font-medium text-gray-700 flex items-center gap-1"><FaFileAlt /> Files ({files.length})</p>
-                            <div className="space-y-2 mt-2">
-                              {files.map((url, index) => (
-                                <a
-                                  key={index}
-                                  href={`http://localhost:8080${url}`}
-                                  download={cleanFileName(url)}
-                                  className="text-blue-600 hover:underline flex items-center gap-2 text-sm truncate"
+                        );
+                      })
+                    ) : (
+                      <p className="text-gray-500 text-center py-6">No messages yet.</p>
+                    )}
+                  </div>
+                  {selectedTicket.status !== 'CLOSED' && selectedTicket.status !== 'RESOLVED' ? (
+                    <button
+                      onClick={() => setIsComposeOpen(true)}
+                      className="mt-6 flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-all shadow-md"
+                    >
+                      <FaPaperPlane /> Reply
+                    </button>
+                  ) : (
+                    <p className="mt-6 text-gray-500 flex items-center gap-2">
+                      <FaLock /> This ticket is {selectedTicket.status.toLowerCase()}. No further replies allowed.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-center text-gray-500 py-12 text-lg">Select a ticket to view details and messages.</p>
+              )}
+            </div>
+          </div>
+    
+          {isComposeOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all animate-scaleIn">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">{selectedTicket ? 'Reply' : 'New Ticket'}</h2>
+                  <button onClick={() => setIsComposeOpen(false)} className="text-gray-500 hover:text-gray-700"><FaTimes size={20} /></button>
+                </div>
+                <form onSubmit={handleSendMessage}>
+                  {!selectedTicket && (
+                    <>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+                        <div className="relative border border-gray-300 rounded-lg p-2 bg-gray-50 flex items-center gap-2 shadow-sm">
+                          {selectedUser ? (
+                            <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full shadow-inner">
+                              {selectedUser.profilePhotoUrl ? (
+                                <img
+                                  src={selectedUser.profilePhotoUrl}
+                                  alt={selectedUser.username || selectedUser.email}
+                                  className="w-6 h-6 rounded-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-xs">
+                                  {getInitials(selectedUser.username || selectedUser.email)}
+                                </div>
+                              )}
+                              <span className="text-sm text-gray-800">{selectedUser.username || selectedUser.email}</span>
+                              <button type="button" onClick={clearSelectedUser} className="text-gray-500 hover:text-gray-700"><FaTimes size={12} /></button>
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              value={searchQuery}
+                              onChange={e => setSearchQuery(e.target.value)}
+                              className="w-full bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400"
+                              placeholder="Search username or email..."
+                            />
+                          )}
+                          {isUserDropdownOpen && !selectedUser && userSuggestions.length > 0 && (
+                            <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-10">
+                              {userSuggestions.map(user => (
+                                <div
+                                  key={user.id}
+                                  onClick={() => handleSelectUser(user)}
+                                  className="flex items-center gap-3 p-3 hover:bg-blue-50 cursor-pointer transition-all"
                                 >
-                                  <FaDownload /> {cleanFileName(url)}
-                                </a>
+                                  {user.profilePhotoUrl ? (
+                                    <img
+                                      src={user.profilePhotoUrl}
+                                      alt={user.username || user.email}
+                                      className="w-8 h-8 rounded-full object-cover shadow-sm"
+                                    />
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-sm">
+                                      {getInitials(user.username || user.email)}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-800">{user.username || 'No username'}</p>
+                                    <p className="text-xs text-gray-500">{user.email}</p>
+                                  </div>
+                                </div>
                               ))}
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-gray-500 text-center py-6">No messages yet.</p>
-                )}
-              </div>
-              {selectedTicket.status !== 'CLOSED' && selectedTicket.status !== 'RESOLVED' ? (
-                <button
-                  onClick={() => setIsComposeOpen(true)}
-                  className="mt-6 flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-all shadow-md"
-                >
-                  <FaPaperPlane /> Reply
-                </button>
-              ) : (
-                <p className="mt-6 text-gray-500 flex items-center gap-2">
-                  <FaLock /> This ticket is {selectedTicket.status.toLowerCase()}. No further replies allowed.
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-center text-gray-500 py-12 text-lg">Select a ticket to view details and messages.</p>
-          )}
-        </div>
-      </div>
-
-      {isComposeOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all animate-scaleIn">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">{selectedTicket ? 'Reply' : 'New Ticket'}</h2>
-              <button onClick={() => setIsComposeOpen(false)} className="text-gray-500 hover:text-gray-700"><FaTimes size={20} /></button>
-            </div>
-            <form onSubmit={handleSendMessage}>
-              {!selectedTicket && (
-                <>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
-                    <div className="relative border border-gray-300 rounded-lg p-2 bg-gray-50 flex items-center gap-2 shadow-sm">
-                      {selectedUser ? (
-                        <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full shadow-inner">
-                          <img
-                            src={selectedUser.profilePhotoUrl || 'https://i.sstatic.net/l60Hf.png'}
-                            alt={selectedUser.username || selectedUser.email}
-                            className="w-6 h-6 rounded-full object-cover"
-                            onError={e => (e.target.src = 'https://i.sstatic.net/l60Hf.png')}
-                          />
-                          <span className="text-sm text-gray-800">{selectedUser.username || selectedUser.email}</span>
-                          <button type="button" onClick={clearSelectedUser} className="text-gray-500 hover:text-gray-700"><FaTimes size={12} /></button>
+                          )}
                         </div>
-                      ) : (
+                      </div>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
                         <input
                           type="text"
-                          value={searchQuery}
-                          onChange={e => setSearchQuery(e.target.value)}
-                          className="w-full bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400"
-                          placeholder="Search username or email..."
+                          value={newMessage.subject}
+                          onChange={e => setNewMessage({ ...newMessage, subject: e.target.value })}
+                          className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 shadow-sm"
+                          placeholder="Enter ticket subject"
                         />
-                      )}
-                      {isUserDropdownOpen && !selectedUser && userSuggestions.length > 0 && (
-                        <div className="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-10">
-                          {userSuggestions.map(user => (
-                            <div
-                              key={user.id}
-                              onClick={() => handleSelectUser(user)}
-                              className="flex items-center gap-3 p-3 hover:bg-blue-50 cursor-pointer transition-all"
-                            >
-                              <img
-                                src={user.profilePhotoUrl || 'https://i.sstatic.net/l60Hf.png'}
-                                alt={user.username || user.email}
-                                className="w-8 h-8 rounded-full object-cover shadow-sm"
-                                onError={e => (e.target.src = 'https://i.sstatic.net/l60Hf.png')}
-                              />
-                              <div>
-                                <p className="text-sm font-medium text-gray-800">{user.username || 'No username'}</p>
-                                <p className="text-xs text-gray-500">{user.email}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                      </div>
+                    </>
+                  )}
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-                    <input
-                      type="text"
-                      value={newMessage.subject}
-                      onChange={e => setNewMessage({ ...newMessage, subject: e.target.value })}
-                      className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 shadow-sm"
-                      placeholder="Enter ticket subject"
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                    <div
+                      ref={contentRef}
+                      contentEditable
+                      className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px] text-sm text-gray-700 shadow-sm"
                     />
                   </div>
-                </>
-              )}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-                <div
-                  ref={contentRef}
-                  contentEditable
-                  className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px] text-sm text-gray-700 shadow-sm"
-                />
-              </div>
-              {selectedTicket && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Attachments</label>
-                  <label className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full cursor-pointer hover:bg-blue-200 transition-all shadow-md">
-                    <FaPaperclip /> Add Files
-                    <input type="file" multiple onChange={handleFileUpload} className="hidden" />
-                  </label>
-                  {newMessage.attachments.map((file, index) => (
-                    <div key={index} className="flex items-center mt-2 bg-gray-50 p-2 rounded-lg shadow-sm">
-                      <span className="text-sm text-gray-700 truncate max-w-[200px]">{file.name}</span>
-                      <button type="button" onClick={() => handleRemoveAttachment(index)} className="ml-2 text-red-500 hover:text-red-600"><FaTrash size={14} /></button>
+                  {selectedTicket && (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Attachments</label>
+                      <label className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full cursor-pointer hover:bg-blue-200 transition-all shadow-md">
+                        <FaPaperclip /> Add Files
+                        <input type="file" multiple onChange={handleFileUpload} className="hidden" />
+                      </label>
+                      {newMessage.attachments.map((file, index) => (
+                        <div key={index} className="flex items-center mt-2 bg-gray-50 p-2 rounded-lg shadow-sm">
+                          <span className="text-sm text-gray-700 truncate max-w-[200px]">{file.name}</span>
+                          <button type="button" onClick={() => handleRemoveAttachment(index)} className="ml-2 text-red-500 hover:text-red-600"><FaTrash size={14} /></button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-              <button type="submit" className="w-full px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-md">
-                <FaPaperPlane /> Send
-              </button>
-            </form>
-          </div>
+                  )}
+                  <button type="submit" className="w-full px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-md">
+                    <FaPaperPlane /> Send
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+          <style jsx>{`
+            [contenteditable]:empty:before { content: "Type your message here..."; color: #9ca3af; }
+            .scrollbar-thin { scrollbar-width: thin; scrollbar-color: #bfdbfe #f3f4f6; }
+            @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+            .animate-scaleIn { animation: scaleIn 0.2s ease-out; }
+          `}</style>
         </div>
-      )}
-      <style jsx>{`
-        [contenteditable]:empty:before { content: "Type your message here..."; color: #9ca3af; }
-        .scrollbar-thin { scrollbar-width: thin; scrollbar-color: #bfdbfe #f3f4f6; }
-        @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        .animate-scaleIn { animation: scaleIn 0.2s ease-out; }
-      `}</style>
-    </div>
-  );
-};
-
-export default Ticket;
+      );
+    };
+    
+    export default Ticket;

@@ -4,6 +4,7 @@ import {
   FaTimes, FaSearch, FaUser, FaEnvelope, FaTag, FaCalendarAlt, FaClock, FaCircle, FaExclamationTriangle
 } from 'react-icons/fa';
 import axios from 'axios';
+import LoadingIndicator from '../pages/LoadingIndicator'; // Your custom loading indicator
 
 // Set axios defaults
 axios.defaults.baseURL = 'http://localhost:8080';
@@ -53,9 +54,27 @@ const formatDate = (date) => {
   }) : 'Never';
 };
 
-// User Profile Popup Component (unchanged)
+// User Profile Popup Component (with skeleton)
 const UserProfilePopup = ({ user, show }) => {
   const lastActive = formatLastActive(user.lastActive, user.isOnline);
+  if (!user) {
+    return (
+      <div
+        className={`absolute top-0 left-1/2 transform -translate-x-1/2 mt-10 bg-white rounded-xl shadow-2xl p-4 w-64 z-[1000] transition-all duration-300 
+          ${show ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+        style={{ zIndex: 1000, position: 'absolute' }}
+      >
+        <div className="flex items-center mb-3">
+          <div className="w-12 h-12 bg-gray-200 animate-pulse rounded-full mr-3" />
+          <div className="h-5 w-1/2 bg-gray-200 animate-pulse rounded" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-4 w-3/4 bg-gray-200 animate-pulse rounded" />
+          <div className="h-4 w-2/3 bg-gray-200 animate-pulse rounded" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       className={`absolute top-0 left-1/2 transform -translate-x-1/2 mt-10 bg-white rounded-xl shadow-2xl p-4 w-64 z-[1000] transition-all duration-300 
@@ -108,9 +127,38 @@ const UserProfilePopup = ({ user, show }) => {
   );
 };
 
-// User Sidebar Component (unchanged)
+// User Sidebar Component (with skeleton)
 const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading }) => {
-  const lastActive = formatLastActive(user.lastActive, user.isOnline);
+  const lastActive = formatLastActive(user?.lastActive, user?.isOnline);
+  if (!user) {
+    return (
+      <div className="fixed inset-y-0 right-0 w-96 bg-gradient-to-b from-gray-50 to-white rounded-l-3xl shadow-xl p-8 transform transition-all duration-300 z-50 overflow-y-auto">
+        <div className="flex justify-between items-center mb-8">
+          <div className="h-8 w-1/2 bg-gray-200 animate-pulse rounded" />
+          <div className="w-8 h-8 bg-gray-200 animate-pulse rounded-full" />
+        </div>
+        <div className="bg-white rounded-2xl p-6 shadow-md mb-6 border border-gray-100">
+          <div className="flex items-center space-x-4">
+            <div className="w-24 h-24 bg-gray-200 animate-pulse rounded-full" />
+            <div className="flex-1 space-y-2">
+              <div className="h-6 w-3/4 bg-gray-200 animate-pulse rounded" />
+              <div className="h-4 w-1/2 bg-gray-200 animate-pulse rounded" />
+            </div>
+          </div>
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-10 w-full bg-gray-200 animate-pulse rounded-lg" />
+          ))}
+        </div>
+        <div className="mt-8 space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-12 w-full bg-gray-200 animate-pulse rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="fixed inset-y-0 right-0 w-96 bg-gradient-to-b from-gray-50 to-white rounded-l-3xl shadow-xl p-8 transform transition-all duration-300 z-50 overflow-y-auto">
       <div className="flex justify-between items-center mb-8">
@@ -225,7 +273,7 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading 
   );
 };
 
-// New Custom Modal Component
+// Custom Modal Component (with skeleton)
 const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, loading }) => {
   if (!isOpen) return null;
 
@@ -264,6 +312,22 @@ const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, l
 
   const { icon, bgColor, textColor, buttonColor } = getStyles();
 
+  if (loading && !title) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 scale-100 opacity-100">
+          <div className="w-16 h-16 bg-gray-200 animate-pulse rounded-full mx-auto mb-4" />
+          <div className="h-6 w-1/2 bg-gray-200 animate-pulse rounded mx-auto mb-2" />
+          <div className="h-4 w-3/4 bg-gray-200 animate-pulse rounded mx-auto mb-6" />
+          <div className="flex justify-center space-x-4">
+            <div className="h-10 w-24 bg-gray-200 animate-pulse rounded-full" />
+            <div className="h-10 w-24 bg-gray-200 animate-pulse rounded-full" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300">
       <div className={`bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
@@ -285,7 +349,7 @@ const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, l
             className={`px-6 py-2 ${buttonColor} text-white rounded-full shadow-md transition-all duration-300 flex items-center`}
             disabled={loading}
           >
-            {loading && <FaSpinner className="animate-spin mr-2" />}
+            {loading && <LoadingIndicator />}
             Confirm
           </button>
         </div>
@@ -294,7 +358,7 @@ const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, l
   );
 };
 
-// Main Users Component (Updated with Custom Modal)
+// Main Users Component (Updated with Skeleton)
 const Users = ({ onlineUsers = [] }) => {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
@@ -596,6 +660,7 @@ const Users = ({ onlineUsers = [] }) => {
       <header className="flex flex-col sm:flex-row justify-between items-center mb-12 max-w-6xl mx-auto gap-4">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-800 flex items-center">
           Users Dashboard
+         
         </h1>
         <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
           <div className="relative w-full sm:w-64">
@@ -656,24 +721,26 @@ const Users = ({ onlineUsers = [] }) => {
         style={{ overflow: 'visible', fontFamily: "'Inter', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}
       >
         <div className="p-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <FaUser className="text-gray-600 text-lg" />
-            <div className="flex items-center space-x-1">
-              <FaCircle className="text-green-500 text-xs" />
+          {loading ? (
+            <div className="flex items-center space-x-2">
+              <div className="w-6 h-6 bg-gray-200 animate-pulse rounded-full" />
+              <div className="h-5 w-32 bg-gray-200 animate-pulse rounded" />
             </div>
-            <span className="text-lg font-semibold text-gray-800">
-              Online Users:{' '}
-              <span className="text-green-600">{onlineUsersCount}</span>{' '}
-              <span className="text-gray-500">/ {filteredUsers.length}</span>
-            </span>
-          </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <FaUser className="text-gray-600 text-lg" />
+              <div className="flex items-center space-x-1">
+                <FaCircle className="text-green-500 text-xs" />
+              </div>
+              <span className="text-lg font-semibold text-gray-800">
+                Online Users:{' '}
+                <span className="text-green-600">{onlineUsersCount}</span>{' '}
+                <span className="text-gray-500">/ {filteredUsers.length}</span>
+              </span>
+            </div>
+          )}
         </div>
 
-        {loading && (
-          <div className="flex justify-center py-4">
-            <FaSpinner className="animate-spin text-blue-600 text-2xl" />
-          </div>
-        )}
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
@@ -686,103 +753,131 @@ const Users = ({ onlineUsers = [] }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {filteredUsers.map((user) => {
-              const lastActive = formatLastActive(user.lastActive, user.isOnline);
-              return (
-                <tr
-                  key={user.id}
-                  onClick={() => setSelectedUser(user)}
-                  className={`transition-colors cursor-pointer ${
-                    user.status === 'Suspended' ? 'bg-yellow-50' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <td className="px-6 py-4 relative" style={{ position: 'relative', overflow: 'visible' }}>
-                    <div
-                      className="flex items-center"
-                      onMouseEnter={() => setHoveredUserId(user.id)}
-                      onMouseLeave={() => setHoveredUserId(null)}
-                    >
-                      <div className="relative">
-                        <div className="w-12 h-12 rounded-full overflow-hidden relative">
-                          {user.profilePhotoUrl ? (
-                            <img src={user.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
-                          ) : (
-                            <div
-                              className="w-full h-12 flex items-center justify-center text-white font-bold shadow-md text-lg"
-                              style={{ backgroundColor: getRandomColor() }}
-                            >
-                              {getInitials(user.username)}
-                            </div>
-                          )}
-                        </div>
-                        <div className="absolute -bottom-0 -right-0 flex items-center">
-                          {user.isOnline && (
-                            <span
-                              className="w-4 h-4 rounded-full border-2 border-white shadow-md transition-all duration-300 bg-green-500"
-                            ></span>
-                          )}
-                          {!user.isOnline && lastActive && (
-                            <span
-                              className="ml-1 text-xs font-semibold px-1 py-0.5 rounded bg-gray-100 text-gray-700 shadow-sm"
-                              style={{ color: lastActive.color }}
-                            >
-                              {lastActive.text}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <span
-                        className={`text-lg font-medium text-gray-800 ${
-                          user.status === 'Suspended' ? 'line-through text-gray-500' : ''
-                        }`}
-                      >
-                        {user.username}
-                      </span>
-                      <UserProfilePopup user={user} show={hoveredUserId === user.id} />
+            {loading ? (
+              Array.from({ length: 5 }).map((_, index) => (
+                <tr key={index} className="animate-pulse">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center">
+                      <div className="w-12 h-12 bg-gray-200 rounded-full mr-3" />
+                      <div className="h-5 w-1/3 bg-gray-200 rounded" />
                     </div>
                   </td>
-                  <td className={`px-6 py-4 text-lg text-gray-600 ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}>
-                    {user.email}
+                  <td className="px-6 py-4">
+                    <div className="h-5 w-2/3 bg-gray-200 rounded" />
                   </td>
                   <td className="px-6 py-4">
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        user.role === 'SuperAdmin'
-                          ? 'bg-purple-100 text-purple-800'
-                          : user.role === 'Admin'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-green-100 text-green-800'
-                      } ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}
-                    >
-                      {user.role}
-                    </span>
+                    <div className="h-5 w-1/4 bg-gray-200 rounded" />
                   </td>
                   <td className="px-6 py-4">
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        user.status === 'Active'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}
-                    >
-                      {user.status}
-                    </span>
+                    <div className="h-5 w-1/5 bg-gray-200 rounded" />
                   </td>
-                  <td className={`px-6 py-4 text-left text-lg text-gray-600 ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}>
-                    {formatBirthdate(user.birthdate)}
+                  <td className="px-6 py-4">
+                    <div className="h-5 w-1/3 bg-gray-200 rounded" />
                   </td>
-                  <td className="px-6 py-4 justify-center">
-                    {user.status === 'Suspended' ? (
-                      <span className="line-through text-gray-500">
-                        {user.verified ? <FaCheck className="text-green-500 w-6 h-6" /> : <FaTimes className="text-red-500 w-6 h-6" />}
-                      </span>
-                    ) : (
-                      user.verified ? <FaCheck className="text-green-500 w-6 h-6" /> : <FaTimes className="text-red-500 w-6 h-6" />
-                    )}
+                  <td className="px-6 py-4">
+                    <div className="h-6 w-6 bg-gray-200 rounded-full mx-auto" />
                   </td>
                 </tr>
-              );
-            })}
+              ))
+            ) : (
+              filteredUsers.map((user) => {
+                const lastActive = formatLastActive(user.lastActive, user.isOnline);
+                return (
+                  <tr
+                    key={user.id}
+                    onClick={() => setSelectedUser(user)}
+                    className={`transition-colors cursor-pointer ${
+                      user.status === 'Suspended' ? 'bg-yellow-50' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4 relative" style={{ position: 'relative', overflow: 'visible' }}>
+                      <div
+                        className="flex items-center"
+                        onMouseEnter={() => setHoveredUserId(user.id)}
+                        onMouseLeave={() => setHoveredUserId(null)}
+                      >
+                        <div className="relative">
+                          <div className="w-12 h-12 rounded-full overflow-hidden relative">
+                            {user.profilePhotoUrl ? (
+                              <img src={user.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
+                            ) : (
+                              <div
+                                className="w-full h-12 flex items-center justify-center text-white font-bold shadow-md text-lg"
+                                style={{ backgroundColor: getRandomColor() }}
+                              >
+                                {getInitials(user.username)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="absolute -bottom-0 -right-0 flex items-center">
+                            {user.isOnline && (
+                              <span
+                                className="w-4 h-4 rounded-full border-2 border-white shadow-md transition-all duration-300 bg-green-500"
+                              ></span>
+                            )}
+                            {!user.isOnline && lastActive && (
+                              <span
+                                className="ml-1 text-xs font-semibold px-1 py-0.5 rounded bg-gray-100 text-gray-700 shadow-sm"
+                                style={{ color: lastActive.color }}
+                              >
+                                {lastActive.text}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span
+                          className={`text-lg font-medium text-gray-800 ml-3 ${
+                            user.status === 'Suspended' ? 'line-through text-gray-500' : ''
+                          }`}
+                        >
+                          {user.username}
+                        </span>
+                        <UserProfilePopup user={user} show={hoveredUserId === user.id} />
+                      </div>
+                    </td>
+                    <td className={`px-6 py-4 text-lg text-gray-600 ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}>
+                      {user.email}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          user.role === 'SuperAdmin'
+                            ? 'bg-purple-100 text-purple-800'
+                            : user.role === 'Admin'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-green-100 text-green-800'
+                        } ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}
+                      >
+                        {user.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          user.status === 'Active'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}
+                      >
+                        {user.status}
+                      </span>
+                    </td>
+                    <td className={`px-6 py-4 text-left text-lg text-gray-600 ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}>
+                      {formatBirthdate(user.birthdate)}
+                    </td>
+                    <td className="px-6 py-4 justify-center">
+                      {user.status === 'Suspended' ? (
+                        <span className="line-through text-gray-500">
+                          {user.verified ? <FaCheck className="text-green-500 w-6 h-6" /> : <FaTimes className="text-red-500 w-6 h-6" />}
+                        </span>
+                      ) : (
+                        user.verified ? <FaCheck className="text-green-500 w-6 h-6" /> : <FaTimes className="text-red-500 w-6 h-6" />
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
         {!loading && filteredUsers.length === 0 && (
@@ -794,103 +889,130 @@ const Users = ({ onlineUsers = [] }) => {
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-fit transform transition-all duration-300 scale-95 animate-scaleIn">
             <h2 className="text-xl font-bold mb-6 text-gray-800 flex items-center">
-              {editingUser ? <><FaEdit className="mr-2 text-blue-600" /> Edit User</> : <><FaUserPlus className="mr-2 text-blue-600" /> Create New User</>}
+              {loading ? (
+                <div className="h-6 w-1/2 bg-gray-200 animate-pulse rounded" />
+              ) : editingUser ? (
+                <>
+                  <FaEdit className="mr-2 text-blue-600" /> Edit User
+                </>
+              ) : (
+                <>
+                  <FaUserPlus className="mr-2 text-blue-600" /> Create New User
+                </>
+              )}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Username</label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              {!editingUser && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Password</label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
+              {loading ? (
+                <>
+                  {Array.from({ length: editingUser ? 6 : 7 }).map((_, i) => (
+                    <div key={i} className="space-y-2">
+                      <div className="h-4 w-1/4 bg-gray-200 animate-pulse rounded" />
+                      <div className="h-10 w-full bg-gray-200 animate-pulse rounded-lg" />
+                    </div>
+                  ))}
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <div className="h-10 w-24 bg-gray-200 animate-pulse rounded-full" />
+                    <div className="h-10 w-24 bg-gray-200 animate-pulse rounded-full" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Username</label>
+                    <input
+                      type="text"
+                      value={formData.username}
+                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                      className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Email</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  {!editingUser && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Password</label>
+                      <input
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Role</label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="User">User</option>
+                      <option value="Admin">Admin</option>
+                      <option value="SuperAdmin">SuperAdmin</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Birthdate</label>
+                    <input
+                      type="date"
+                      value={formData.birthdate}
+                      onChange={(e) => setFormData({ ...formData, birthdate: e.target.value })}
+                      className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Verified</label>
+                    <select
+                      value={formData.verified ? 'true' : 'false'}
+                      onChange={(e) => setFormData({ ...formData, verified: e.target.value === 'true' })}
+                      className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="true">Yes</option>
+                      <option value="false">No</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Status</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                      className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Suspended">Suspended</option>
+                    </select>
+                  </div>
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+                      disabled={loading}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
+                      disabled={loading}
+                    >
+                      {loading && <LoadingIndicator />}
+                      {editingUser ? 'Update' : 'Create'}
+                    </button>
+                  </div>
+                </>
               )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Role</label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="User">User</option>
-                  <option value="Admin">Admin</option>
-                  <option value="SuperAdmin">SuperAdmin</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Birthdate</label>
-                <input
-                  type="date"
-                  value={formData.birthdate}
-                  onChange={(e) => setFormData({ ...formData, birthdate: e.target.value })}
-                  className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Verified</label>
-                <select
-                  value={formData.verified ? 'true' : 'false'}
-                  onChange={(e) => setFormData({ ...formData, verified: e.target.value === 'true' })}
-                  className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Status</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Suspended">Suspended</option>
-                </select>
-              </div>
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
-                  disabled={loading}
-                >
-                  {loading && <FaSpinner className="animate-spin mr-2" />}
-                  {editingUser ? 'Update' : 'Create'}
-                </button>
-              </div>
             </form>
           </div>
         </div>
@@ -899,7 +1021,7 @@ const Users = ({ onlineUsers = [] }) => {
       {selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-40 sidebar-overlay" onClick={handleOutsideClick}>
           <UserSidebar
-            user={selectedUser}
+            user={loading ? null : selectedUser}
             onClose={() => setSelectedUser(null)}
             onEdit={handleEdit}
             onDelete={handleDelete}

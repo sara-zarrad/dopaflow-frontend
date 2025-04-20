@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
-import { FaSearch, FaCog, FaKey, FaShieldAlt, FaBell, FaChevronRight } from 'react-icons/fa';
+import { FaSearch, FaCog } from 'react-icons/fa';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Contacts from './pages/Contacts';
@@ -16,12 +16,13 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import logo from './images/logodopaflow.png';
 import logo2 from './images/logo_simple_dopaflow.png';
-import aiIcon from './images/ai-icon.png';
 import axios from 'axios';
 import Page404 from './pages/Page404';
-import { AIChat } from './AIService';
 import SidebarIcon from './images/sidebar.png';
 import Companies from './pages/Companies';
+import NotificationDropdown from './Notification';
+import Notifications from './pages/Notifications';
+
 // Utility Components
 const RefreshOnMount = ({ fetchData, hasError }) => {
   const [hasFetched, setHasFetched] = useState(false);
@@ -70,10 +71,9 @@ const Tooltip = ({ label, isSidebarOpen, iconRef, children }) => {
   );
 };
 
-const SearchBar = ({ setIsAIChatOpen, setInitialChatMessage }) => {
+const SearchBar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [aiSuggestions, setAISuggestions] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -99,17 +99,12 @@ const SearchBar = ({ setIsAIChatOpen, setInitialChatMessage }) => {
     setSearchQuery(query);
     if (!query.trim()) {
       setSearchResults([]);
-      setAISuggestions([]);
       setIsOpen(false);
       return;
     }
     const lowerQuery = query.toLowerCase().trim();
     const results = searchItems.filter(item => item.label.toLowerCase().includes(lowerQuery));
     setSearchResults(results);
-    setAISuggestions([
-      { label: `What is ${query}`, id: 'ai-0' },
-      { label: `Search more for ${query}`, id: 'ai-1' },
-    ]);
     setIsOpen(true);
   };
 
@@ -121,16 +116,6 @@ const SearchBar = ({ setIsAIChatOpen, setInitialChatMessage }) => {
     }
     setSearchQuery('');
     setSearchResults([]);
-    setAISuggestions([]);
-    setIsOpen(false);
-  };
-
-  const handleAISuggestionClick = (suggestion) => {
-    setInitialChatMessage({ sender: 'user', text: suggestion.label });
-    setIsAIChatOpen(true);
-    setSearchQuery('');
-    setSearchResults([]);
-    setAISuggestions([]);
     setIsOpen(false);
   };
 
@@ -152,7 +137,7 @@ const SearchBar = ({ setIsAIChatOpen, setInitialChatMessage }) => {
           />
         </div>
       </form>
-      {isOpen && (searchResults.length > 0 || aiSuggestions.length > 0) && (
+      {isOpen && searchResults.length > 0 && (
         <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-60 overflow-y-auto animate-fadeIn">
           {searchResults.map((result, index) => (
             <div
@@ -163,261 +148,6 @@ const SearchBar = ({ setIsAIChatOpen, setInitialChatMessage }) => {
               {result.label}
             </div>
           ))}
-          {aiSuggestions.map(suggestion => (
-            <div
-              key={suggestion.id}
-              onClick={() => handleAISuggestionClick(suggestion)}
-              className="px-2 py-2.5 hover:bg-blue-50 cursor-pointer text-sm text-blue-600 flex items-center border-b border-gray-200 last:border-b-0"
-            >
-              <img src={aiIcon} alt="AI" className="w-6 h-6 mr-2" />
-              {suggestion.label}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Notification Dropdown Component
-const NotificationType = {
-  PASSWORD_CHANGE: "PASSWORD_CHANGE",
-  TWO_FA_ENABLED: "TWO_FA_ENABLED",
-  TWO_FA_DISABLED: "TWO_FA_DISABLED",
-  USER_CREATED: "USER_CREATED",
-  USER_DELETED: "USER_DELETED",
-  CONTACT_CREATED: "CONTACT_CREATED",
-  TASK_ASSIGNED: "TASK_ASSIGNED",
-  MESSAGE_RECEIVED: "MESSAGE_RECEIVED",
-  TICKET_OPENED: "TICKET_OPENED",
-  TICKET_CLOSED: "TICKET_CLOSED",
-  TICKET_STATUS_CHANGED: "TICKET_STATUS_CHANGED",
-};
-
-const getNotificationDetails = (type) => {
-  switch (type) {
-    case NotificationType.PASSWORD_CHANGE:
-      return { icon: <FaKey className="w-5 h-5 text-blue-500" /> };
-    case NotificationType.TWO_FA_ENABLED:
-      return { icon: <FaShieldAlt className="w-5 h-5 text-green-500" /> };
-    case NotificationType.TWO_FA_DISABLED:
-      return { icon: <FaShieldAlt className="w-5 h-5 text-red-500" /> };
-    case NotificationType.USER_CREATED:
-      return { icon: <FaBell className="w-5 h-5 text-purple-500" /> };
-    case NotificationType.USER_DELETED:
-      return { icon: <FaBell className="w-5 h-5 text-red-500" /> };
-    case NotificationType.CONTACT_CREATED:
-      return { icon: <FaBell className="w-5 h-5 text-blue-500" /> };
-    case NotificationType.TASK_ASSIGNED:
-      return { icon: <FaBell className="w-5 h-5 text-yellow-500" /> };
-    case NotificationType.MESSAGE_RECEIVED:
-      return { icon: <FaBell className="w-5 h-5 text-teal-500" /> };
-    case NotificationType.TICKET_OPENED:
-      return { icon: <FaBell className="w-5 h-5 text-orange-500" /> };
-    case NotificationType.TICKET_CLOSED:
-      return { icon: <FaBell className="w-5 h-5 text-green-500" /> };
-    case NotificationType.TICKET_STATUS_CHANGED:
-      return { icon: <FaBell className="w-5 h-5 text-blue-500" /> };
-    default:
-      return { icon: <FaBell className="w-5 h-5 text-gray-500" /> };
-  }
-};
-
-const getTimeAgo = timestamp => {
-  const now = new Date();
-  const then = new Date(timestamp);
-  const diffMs = now - then;
-  const diffSeconds = Math.floor(diffMs / 1000);
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  const diffHours = Math.floor(diffMinutes / 60);
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffSeconds < 60) return 'just now';
-  if (diffMinutes < 60) return `${diffMinutes} min${diffMinutes > 1 ? 's' : ''} ago`;
-  if (diffHours < 24) return `${diffHours} hr${diffHours > 1 ? 's' : ''} ago`;
-  return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-};
-
-const NotificationDropdown = () => {
-  const [notifications, setNotifications] = useState([]);
-  const [isOpen, setIsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const dropdownRef = useRef(null);
-  const navigate = useNavigate();
-
-  const fetchNotifications = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No token found');
-      const response = await axios.get('http://localhost:8080/api/notifications', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const fetchedNotifications = response.data.notifications || [];
-      const fetchedUnreadCount = response.data.unreadCount || 0;
-      setNotifications(fetchedNotifications);
-      setUnreadCount(fetchedUnreadCount);
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error.response?.data || error.message);
-    }
-  }, []);
-
-  const markNotificationAsRead = async (notificationId) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No token found');
-      await axios.put(`http://localhost:8080/api/notifications/${notificationId}/read`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setNotifications(prev => prev.map(n => (n.id === notificationId ? { ...n, isRead: true } : n)));
-      setUnreadCount(prev => (prev > 0 ? prev - 1 : 0));
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error.response?.data || error.message);
-    }
-  };
-
-  const markAllAsRead = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No token found');
-      await axios.put('http://localhost:8080/api/notifications/mark-all-read', {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-      setUnreadCount(0);
-    } catch (error) {
-      console.error('Failed to mark all as read:', error.response?.data || error.message);
-    }
-  };
-
-  const handleRedirect = (link) => {
-    if (!link) return;
-
-    const [path, param1, param2] = link.split('/').filter(Boolean);
-    if (path === 'profile') {
-      const tabMapping = {
-        '2fa': 'twoFactor',
-        'security': 'security',
-        'avatars': 'avatars',
-        'profile': 'profile',
-      };
-      const mappedTab = tabMapping[param1] || 'profile';
-      navigate('/profile', { state: { highlight: mappedTab, section: mappedTab } });
-    } else if (path === 'tasks' && param1) {
-      navigate('/tasks', { state: { highlightTaskId: param1 } });
-    } else {
-      navigate(link);
-    }
-    setIsOpen(false);
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
-
-  useEffect(() => {
-    const handleClickOutside = event => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsOpen(false);
-    };
-    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
-
-  return (
-    <div style={{ marginRight: '200px', marginTop: '-22px' }}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-400 shadow-sm transition-all duration-200"
-      >
-        <FaBell className="w-5 h-5" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-teal-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
-      {isOpen && (
-        <div
-          ref={dropdownRef}
-          className="absolute w-96 bg-white rounded-xl shadow-lg border border-gray-100 z-20 overflow-hidden"
-          style={{ top: '80px', right: '100px' }}
-        >
-          {/* Header */}
-          <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-800">Notifications</h3>
-            {unreadCount > 0 && (
-              <span className="text-sm text-gray-500">
-                {unreadCount} unread
-              </span>
-            )}
-          </div>
-
-          {/* Notifications List */}
-          <div className="max-h-80 overflow-y-auto">
-            {notifications.length > 0 ? (
-              notifications.map(notification => {
-                const { icon } = getNotificationDetails(notification.type);
-                return (
-                  <div
-                    key={notification.id}
-                    onClick={() => !notification.isRead && markNotificationAsRead(notification.id)}
-                    className="flex items-center px-5 py-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors duration-150"
-                  >
-                    {/* Icon */}
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                      {icon}
-                    </div>
-
-                    {/* Notification Content */}
-                    <div className="ml-3 flex-1">
-                      <p className={`text-sm ${notification.isRead ? 'text-gray-600' : 'text-gray-800 font-medium'}`}>
-                        {notification.message}
-                      </p>
-                      <p className="text-xs text-gray-400">{getTimeAgo(notification.timestamp)}</p>
-                    </div>
-
-                    {/* Action Button (if link exists) */}
-                    {notification.link && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRedirect(notification.link);
-                        }}
-                        className="flex-shrink-0 ml-2 p-1 bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300 transition-all duration-150"
-                        title="Go to page"
-                      >
-                        <FaChevronRight className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="px-5 py-6 text-center text-gray-500">
-                <FaBell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                <p className="text-sm">No notifications yet</p>
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          {notifications.length > 0 && (
-            <div className="border-t border-gray-200">
-              <button
-                onClick={markAllAsRead}
-                className="w-full py-3 text-sm text-blue-600 hover:bg-blue-50 font-medium transition-colors duration-150"
-              >
-                Mark All as Read
-              </button>
-              <button
-                onClick={() => {
-                  navigate('/notifications');
-                  setIsOpen(false);
-                }}
-                className="w-full py-3 text-sm text-gray-600 hover:bg-gray-50 font-medium transition-colors duration-150 border-t border-gray-200"
-              >
-                View All
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -482,9 +212,6 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
   const [error, setError] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => JSON.parse(localStorage.getItem('sidebarOpen') || 'true'));
-  const [showAIButton, setShowAIButton] = useState(() => JSON.parse(localStorage.getItem('showAIButton') || 'true'));
-  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
-  const [initialChatMessage, setInitialChatMessage] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const dropdownRef = useRef(null);
 
@@ -598,12 +325,6 @@ function App() {
     localStorage.setItem('sidebarOpen', JSON.stringify(newState));
   };
 
-  const toggleShowAIButton = () => {
-    const newState = !showAIButton;
-    setShowAIButton(newState);
-    localStorage.setItem('showAIButton', JSON.stringify(newState));
-  };
-
   const navLinks = user
     ? [
         ...(user.role === 'User' ? [] : [{ to: '/dashboard', label: 'Dashboard', icon: 'dashboard' }]),
@@ -636,7 +357,7 @@ function App() {
         {!isLoggedIn ? (
           <>
             <div className="flex justify-between items-center p-4">
-              <img src={logo} alt="Logo" className="w-42 h-20 object-contain rounded-lg shadow-md" />
+              <img src={logo} alt="Logo" className="w-42 h-16 object-contain rounded-lg shadow-md" />
               <div className="space-x-4">
                 <NavLink to="/login" className="text-blue-600 py-2 px-6 rounded-lg font-medium border-2 border-blue-600 hover:bg-blue-600 hover:text-white transition-all duration-300">
                   <span>Login</span>
@@ -658,7 +379,7 @@ function App() {
           </>
         ) : (
           <div className="flex">
-            <aside className={`fixed h-screen bg-white shadow-xl p-4 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+            <aside className={`fixed h-screen bg-white shadow-xl p-4 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'w-60' : 'w-20'}`}>
               <div className="flex items-left justify-between mb-4">
                 <img src={isSidebarOpen ? logo : logo2} alt="Logo" className={`object-contain rounded-lg ${isSidebarOpen ? 'w-48 h-16' : 'w-14 h-14'}`} style={{ marginTop: '5px' }} />
                 <button
@@ -666,7 +387,7 @@ function App() {
                   className="fixed flex items-center justify-center w-12 h-12 bg-white border-gray-200 border-t border-r border-b hover:bg-gray-100 transition-all duration-200 z-50"
                   style={{
                     top: '21px',
-                    left: isSidebarOpen ? '256px' : '80px',
+                    left: isSidebarOpen ? '240px' : '80px',
                     borderTopRightRadius: '12px',
                     borderBottomRightRadius: '12px',
                   }}
@@ -703,7 +424,7 @@ function App() {
             </aside>
             <main className={`flex-1 p-8 pt-8 overflow-auto transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
               <div className="flex items-center mb-4">
-                <SearchBar setIsAIChatOpen={setIsAIChatOpen} setInitialChatMessage={setInitialChatMessage} />
+                <SearchBar />
                 <NotificationDropdown />
               </div>
               {error && <div className="text-red-600 text-center p-4 mb-4">{error}</div>}
@@ -748,9 +469,6 @@ function App() {
                         <NavLink to="/profile" onClick={() => setIsDropdownOpen(false)} className="block px-4 py-2 text-gray-800 hover:bg-gray-100 rounded-lg">
                           Profile
                         </NavLink>
-                        <button onClick={() => { toggleShowAIButton(); setIsDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100 rounded-lg">
-                          {showAIButton ? 'Hide AI Assistant' : 'Show AI Assistant'}
-                        </button>
                         <button onClick={() => { handleLogout(); setIsDropdownOpen(false); }} className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-100 rounded-lg">
                           Logout
                         </button>
@@ -770,6 +488,7 @@ function App() {
                   <Route path="/reports" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Reports /></ProtectedRoute>} />
                   <Route path="/opportunities" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Opportunities /></ProtectedRoute>} />
                   <Route path="/tickets" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Ticket /></ProtectedRoute>} />
+                  <Route path="/notifications" element={<ProtectedRoute fetchUser={fetchUser}><Notifications /></ProtectedRoute>} />
                   <Route path="/tickets/:ticketId" element={<ProtectedRoute fetchUser={fetchUser} onlineUsers={onlineUsers}><Ticket /></ProtectedRoute>} />
                   <Route path="/companies" element={<ProtectedRoute fetchUser={fetchUser}><Companies /></ProtectedRoute>} />
                   <Route path="/login" element={<Navigate to="/profile" />} />
@@ -779,21 +498,6 @@ function App() {
                   <Route path="*" element={<Page404 isLoggedIn={true} />} />
                 </Routes>
               </div>
-              {showAIButton && (
-                <button
-                  onClick={() => setIsAIChatOpen(true)}
-                  className="neon-spinner"
-                >
-                  <div className="spinner-layers">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                  <img src={aiIcon} alt="AI" className="w-12 h-10" />
-                </button>
-              )}
-              {isAIChatOpen && <AIChat onClose={() => setIsAIChatOpen(false)} initialMessage={initialChatMessage} />}
             </main>
           </div>
         )}

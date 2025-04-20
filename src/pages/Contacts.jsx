@@ -7,6 +7,9 @@ import {
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Select from 'react-select';
+import AsyncSelect from 'react-select/async';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import LoadingIndicator from '../pages/LoadingIndicator';
 
 // Axios config
 axios.defaults.baseURL = 'http://localhost:8080';
@@ -17,8 +20,34 @@ const getInitials = (name = '') => {
   if (!name) return '??';
   const names = name.split(' ');
   return names.map((n) => n.charAt(0)).join('').toUpperCase().slice(0, 2);
-};
+  };
+// Define the loadCompanyOptions function for AsyncSelect
+const loadCompanyOptions = async (inputValue) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('No token found');
+    
+    const response = await axios.get('/api/companies/search', {
+      headers: { Authorization: `Bearer ${token}` },
+      params: {
+        query: inputValue || '', // Empty string if no input to get some default options
+        page: 0, // First page
+        size: 50, // Fetch 50 companies, adjust if needed
+        sort: 'name,asc', // Sort by name alphabetically
+      },
+    });
 
+    const companies = response.data.content || [];
+    return companies.map(company => ({
+      value: company.id,
+      label: company.name,
+      company: { id: company.id, name: company.name },
+    }));
+  } catch (err) {
+    console.error('Failed to fetch companies:', err);
+    return [];
+  }
+};
 const getRandomColor = () => '#b0b0b0';
 const customStyles = `
   .form-container {
@@ -195,6 +224,62 @@ const customStyles = `
 body:has(.no-scroll) {
   overflow: hidden; /* Locks body scroll */
 }
+  .checkbox-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  cursor: pointer;
+}
+
+.checkbox-wrapper span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  background-color: #ffffff;
+  border: 2px solid #d1d5db;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkbox-wrapper input[type="checkbox"]:checked + span {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.checkbox-wrapper input[type="checkbox"]:hover:not(:disabled) + span {
+  border-color: #93c5fd;
+}
+
+.checkbox-wrapper input[type="checkbox"]:disabled + span {
+  background-color: #e5e7eb;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+}
+
+.checkbox-wrapper span svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.checkbox-wrapper input[type="checkbox"]:checked + span svg {
+  opacity: 1;
+}
 `;
 
 // Debounce utility
@@ -242,10 +327,10 @@ const Contacts = () => {
   const [previewData, setPreviewData] = useState(null);
   const [selectedColumns, setSelectedColumns] = useState([]);
   const [updateExisting, setUpdateExisting] = useState(false);
-  const [importProgress, setImportProgress] = useState(0);
   const [modalConfig, setModalConfig] = useState({ isOpen: false, onConfirm: null, title: '', message: '', actionType: '' });
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
 
   // Debounced setSelectedContact
   const debouncedSetSelectedContact = debounce((contact) => {
@@ -261,23 +346,32 @@ const Contacts = () => {
     if (newCompanyId || canceledFromCompanies) {
       const pendingData = JSON.parse(localStorage.getItem('pendingContactData') || '{}');
       const restoredOwner = pendingData.owner ? users.find(u => u.id === pendingData.owner.id) : null;
-      const restoredCompany = newCompanyId
-        ? companies.find(c => c.id === parseInt(newCompanyId, 10))
-        : (pendingData.company ? companies.find(c => c.id === pendingData.company.id) : null);
   
-      setFormData({
-        ...pendingData,
-        owner: restoredOwner,
-        company: restoredCompany,
-        photo: null,
-        photoUrl: '',
-      });
-      setShowForm(true);
-      // Preserve editingContactId if it exists
-      if (pendingData.id) {
-        setEditingContactId(pendingData.id);
-      }
-      // Don’t navigate away—keep newCompanyId in URL
+      const setForm = async () => {
+        let restoredCompany = null;
+        if (newCompanyId) {
+          const company = await fetchCompanyById(newCompanyId);
+          if (company) {
+            restoredCompany = { id: company.id, name: company.name };
+          }
+        } else if (pendingData.company) {
+          restoredCompany = companies.find(c => c.id === pendingData.company.id) || null;
+        }
+  
+        setFormData({
+          ...pendingData,
+          owner: restoredOwner,
+          company: restoredCompany,
+          photo: null,
+          photoUrl: '',
+        });
+        setShowForm(true);
+        if (pendingData.id) {
+          setEditingContactId(pendingData.id);
+        }
+      };
+  
+      setForm();
     }
   }, [location.search, companies, users]);
 
@@ -287,116 +381,91 @@ const Contacts = () => {
     size: pageSize,
     sort: `${sortColumn},${sortDirection}`,
   }), [currentPage, pageSize, sortColumn, sortDirection]);
-
-  const fetchAllContacts = useCallback(async (token, params) => {
-    console.log('Fetching all contacts:', params);
-    const response = await axios.get('/api/contacts/all', {
-      headers: { Authorization: `Bearer ${token}` },
-      params
-    });
-    return response.data;
-  }, []);
-
-  const fetchSearchContacts = useCallback(async (token, params) => {
-    console.log('Searching contacts:', params);
-    const response = await axios.get('/api/contacts/search', {
-      headers: { Authorization: `Bearer ${token}` },
-      params
-    });
-    return response.data;
-  }, []);
-
-  const fetchFilteredContacts = useCallback(async (token, params) => {
-    console.log('Filtering contacts with params:', params);
-    const response = await axios.get('/api/contacts/filter', {
-      headers: { Authorization: `Bearer ${token}` },
-      params
-    });
-    return response.data;
-  }, []);
-
-  const fetchContacts = useCallback(async () => {
-    setLoading(true);
-    try {
+  
+  const { data: contactsData, isLoading, error: queryError } = useQuery({
+    queryKey: ['contacts', activeTab, searchQuery, filters, currentPage, sortColumn, sortDirection],
+    queryFn: async () => {
       const token = localStorage.getItem('token');
-      console.log('Fetching contacts with token:', token ? 'Present' : 'Missing');
       if (!token) throw new Error('No token found');
-
+  
       const baseParams = getBaseParams();
-      let data;
-
+      let params = { ...baseParams };
+  
       switch (activeTab) {
         case 'all':
-          data = await fetchAllContacts(token, baseParams);
-          break;
+          return (await axios.get('/api/contacts/all', { headers: { Authorization: `Bearer ${token}` }, params })).data;
         case 'search':
           if (!searchQuery.trim()) {
-            data = await fetchAllContacts(token, baseParams);
+            return (await axios.get('/api/contacts/all', { headers: { Authorization: `Bearer ${token}` }, params })).data;
           } else {
-            const searchParams = { ...baseParams, query: searchQuery.trim() };
-            data = await fetchSearchContacts(token, searchParams);
+            params.query = searchQuery.trim();
+            return (await axios.get('/api/contacts/search', { headers: { Authorization: `Bearer ${token}` }, params })).data;
           }
-          break;
         case 'filter':
-          const filterParams = { ...baseParams };
-          if (filters.status === 'Open' || filters.status === 'Closed') filterParams.status = filters.status;
-          if (filters.startDate?.trim()) filterParams.startDate = filters.startDate;
-          if (filters.endDate?.trim()) filterParams.endDate = filters.endDate;
-          if (filters.owner === 'unassigned') filterParams.unassignedOnly = true;
-          else if (filters.owner !== 'all' && filters.owner?.id) filterParams.ownerId = filters.owner.id;
-          data = await fetchFilteredContacts(token, filterParams);
-          break;
+          if (filters.status === 'Open' || filters.status === 'Closed') params.status = filters.status;
+          if (filters.startDate?.trim()) params.startDate = filters.startDate;
+          if (filters.endDate?.trim()) params.endDate = filters.endDate;
+          if (filters.owner === 'unassigned') params.unassignedOnly = true;
+          else if (filters.owner !== 'all' && filters.owner?.id) params.ownerId = filters.owner.id;
+          return (await axios.get('/api/contacts/filter', { headers: { Authorization: `Bearer ${token}` }, params })).data;
         default:
           throw new Error('Invalid activeTab value');
       }
-
-      console.log('Response received:', data);
-      setContacts(data.content || []);
-      setTotalPages(data.totalPages || 1);
-      setTotalContacts(data.totalElements || data.content.length || 0);
-      setSelectedContacts(new Set());
-      setError(null);
-    } catch (err) {
-      console.error('Fetch error:', err.response ? err.response.data : err.message);
+    },
+    onError: (err) => {
       setError(err.response?.status === 401 ? 'Unauthorized. Please log in.' : 'Failed to fetch contacts: ' + (err.response?.data?.error || err.message));
       if (err.response?.status === 401) navigate('/login');
-    } finally {
-      setLoading(false);
+    },
+  });
+  
+  useEffect(() => {
+    if (contactsData) {
+      setContacts(contactsData.content || []);
+      setTotalPages(contactsData.totalPages || 1);
+      setTotalContacts(contactsData.totalElements || 0);
+      setSelectedContacts(new Set());
+      setError(null);
     }
-  }, [activeTab, searchQuery, filters, getBaseParams, navigate, fetchAllContacts, fetchSearchContacts, fetchFilteredContacts]);
+  }, [contactsData]);
 
-  const fetchUsers = useCallback(async () => {
-    try {
+  const { data: usersData } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/users/all', { headers: { Authorization: `Bearer ${token}` } });
-      setUsers(response.data || []);
-    } catch (err) {
-      setError('Failed to fetch users');
-    }
-  }, []);
-
-  const fetchCompanies = useCallback(async () => {
-    try {
+      return (await axios.get('/api/users/all', { headers: { Authorization: `Bearer ${token}` } })).data || [];
+    },
+    onError: () => setError('Failed to fetch users'),
+  });
+  
+  const { data: companiesData } = useQuery({
+    queryKey: ['companies'],
+    queryFn: async () => {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/companies/all', {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { page: 0, size: 1000, sort: 'name,asc' }
-      });
-      setCompanies(response.data.content || []);
-    } catch (err) {
-      setError('Failed to fetch companies');
-    }
-  }, []);
+      return (await axios.get('/api/companies/allNames', { headers: { Authorization: `Bearer ${token}` } })).data || [];
+    },
+    onError: () => setError('Failed to fetch companies'),
+  });
+  
+  useEffect(() => {
+    if (usersData) setUsers(usersData);
+    if (companiesData) setCompanies(companiesData);
+  }, [usersData, companiesData]);
 
+const fetchCompanyById = async (id) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`/api/companies/get/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  } catch (err) {
+    console.error('Failed to fetch company:', err);
+    return null;
+  }
+};
   // Effect Hooks
-  useEffect(() => {
-    fetchContacts();
-  }, [fetchContacts]);
 
-  useEffect(() => {
-    fetchUsers();
-    fetchCompanies();
-  }, [fetchUsers, fetchCompanies]);
+ 
 
   useEffect(() => {
     if (message || error) {
@@ -454,63 +523,70 @@ const Contacts = () => {
     setCurrentPage(0);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      let photoUrl = formData.photoUrl;
-  
-      if (formData.photo) {
-        const photoData = new FormData();
-        photoData.append('file', formData.photo);
-        photoData.append('contactId', editingContactId || 0);
-        const uploadRes = await axios.post(`/api/contacts/${editingContactId || 0}/uploadPhoto`, photoData, {
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
-        });
-        photoUrl = uploadRes.data.photoUrl;
-      }
-  
-      const contactData = {
-        ...formData,
-        photoUrl,
-        owner: formData.owner ? { id: formData.owner.id } : null,
-        company: formData.company ? { id: formData.company.id } : null,
-      };
-      const response = editingContactId
-        ? await axios.put(`/api/contacts/update/${editingContactId}`, contactData, { headers: { Authorization: `Bearer ${token}` } })
-        : await axios.post('/api/contacts/add', contactData, { headers: { Authorization: `Bearer ${token}` } });
-  
-      setContacts((prev) => editingContactId ? prev.map(c => c.id === editingContactId ? response.data : c) : [response.data, ...prev]);
-      setMessage(editingContactId ? 'Contact updated!' : 'Contact added!');
-  
-      // Check if we're coming back from Companies with a newCompanyId
-      const params = new URLSearchParams(location.search);
-      const newCompanyId = params.get('newCompanyId');
-  
-      if (newCompanyId) {
-        // If we have a newCompanyId, keep the form open with the updated data
-        const updatedCompany = companies.find(c => c.id === parseInt(newCompanyId, 10));
-        setFormData(prev => ({
-          ...prev,
-          company: updatedCompany ? { id: updatedCompany.id, name: updatedCompany.name } : prev.company,
-        }));
-        setShowForm(true); // Ensure form stays open
-        navigate(`/contacts?newCompanyId=${newCompanyId}`); // Keep newCompanyId in URL
-      } else {
-        // Normal save (no company redirect), reset and close form
-        localStorage.removeItem('pendingContactData');
-        navigate('/contacts');
-        resetForm();
-      }
-  
-      fetchContacts();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save contact');
-    } finally {
-      setLoading(false);
+const addContactMutation = useMutation({
+  mutationFn: (newContact) => {
+    const token = localStorage.getItem('token');
+    return axios.post('/api/contacts/add', newContact, { headers: { Authorization: `Bearer ${token}` } });
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries(['contacts']);
+    setMessage('Contact added!');
+    localStorage.removeItem('pendingContactData');
+    resetForm();
+    navigate('/contacts');
+  },
+  onError: (err) => setError(err.response?.data?.error || 'Failed to add contact'),
+});
+
+const updateContactMutation = useMutation({
+  mutationFn: (updatedContact) => {
+    const token = localStorage.getItem('token');
+    return axios.put(`/api/contacts/update/${editingContactId}`, updatedContact, { headers: { Authorization: `Bearer ${token}` } });
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries(['contacts']);
+    setMessage('Contact updated!');
+    localStorage.removeItem('pendingContactData');
+    resetForm();
+    navigate('/contacts');
+  },
+  onError: (err) => setError(err.response?.data?.error || 'Failed to update contact'),
+});
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  try {
+    let photoUrl = formData.photoUrl;
+    const token = localStorage.getItem('token');
+    if (formData.photo) {
+      const photoData = new FormData();
+      photoData.append('file', formData.photo);
+      photoData.append('contactId', editingContactId || 0);
+      const uploadRes = await axios.post(`/api/contacts/${editingContactId || 0}/uploadPhoto`, photoData, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+      });
+      photoUrl = uploadRes.data.photoUrl;
     }
-  };
+
+    const contactData = {
+      ...formData,
+      photoUrl,
+      owner: formData.owner ? { id: formData.owner.id } : null,
+      company: formData.company ? { id: formData.company.id } : null,
+    };
+
+    if (editingContactId) {
+      await updateContactMutation.mutateAsync(contactData);
+    } else {
+      await addContactMutation.mutateAsync(contactData);
+    }
+  } catch (err) {
+    // Errors handled in onError callbacks
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleCancel = () => {
     localStorage.removeItem('pendingContactData'); // Fixed from 'pendingCompanyData'
@@ -518,20 +594,26 @@ const Contacts = () => {
     resetForm();
   };
 
+  const deleteContactMutation = useMutation({
+    mutationFn: (id) => {
+      const token = localStorage.getItem('token');
+      return axios.delete(`/api/contacts/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['contacts']);
+      setMessage('Contact deleted!');
+      setSelectedContact(null);
+    },
+    onError: () => setError('Failed to delete contact'),
+  });
+  
   const handleDelete = (id) => {
     setModalConfig({
       isOpen: true,
       onConfirm: async () => {
         setLoading(true);
         try {
-          const token = localStorage.getItem('token');
-          await axios.delete(`/api/contacts/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-          setContacts((prev) => prev.filter(c => c.id !== id));
-          setMessage('Contact deleted!');
-          setSelectedContact(null);
-          fetchContacts();
-        } catch (err) {
-          setError('Failed to delete contact');
+          await deleteContactMutation.mutateAsync(id);
         } finally {
           setLoading(false);
           setModalConfig({ ...modalConfig, isOpen: false });
@@ -542,7 +624,6 @@ const Contacts = () => {
       actionType: 'delete',
     });
   };
-
   const handlePreview = async () => {
     if (!importFile) {
       setError('Please select a file to preview.');
@@ -587,39 +668,29 @@ const Contacts = () => {
       setError('No valid preview data available to import.');
       return;
     }
-
+  
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token found. Please log in.');
-
+  
       const formData = new FormData();
       formData.append('file', importFile);
       formData.append('type', importType);
       formData.append('updateExisting', updateExisting);
       formData.append('selectedColumns', JSON.stringify(selectedColumns));
-
-      const totalContacts = previewData.contacts.length;
-      let importedCount = 0;
-
+  
       const response = await axios.post('/api/contacts/import', formData, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (progressEvent) => {
-          const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
-          setImportProgress(progress);
-          importedCount = Math.round((progress / 100) * totalContacts);
-        },
       });
-
+  
       setMessage(response.data.message || 'Contacts imported successfully!');
       setShowImportModal(false);
       setPreviewData(null);
       setSelectedColumns([]);
-      setImportProgress(0);
       setImportFile(null);
-      fetchContacts();
+      queryClient.invalidateQueries(['contacts']); // Refresh contacts after import
     } catch (err) {
-      console.error('Import error:', err);
       setError('Failed to import contacts: ' + (err.response?.data?.error || err.message));
     } finally {
       setLoading(false);
@@ -705,11 +776,12 @@ const Contacts = () => {
     })),
   ];
 
-  const companyOptions = companies.map(company => ({
-    value: company.id,
-    label: company.name,
-    company,
-  }));
+// In contact.jsx, update companyOptions
+const companyOptions = companies.map(company => ({
+  value: company.id,
+  label: company.name,
+  company: { id: company.id, name: company.name }, // Simplified company object
+}));
 
   const handleSelectContact = (contactId) => {
     setSelectedContacts(prev => {
@@ -734,7 +806,7 @@ const Contacts = () => {
 
   const handleDeleteSelected = () => {
     if (!selectedContacts.size) return;
-
+  
     setModalConfig({
       isOpen: true,
       onConfirm: async () => {
@@ -744,13 +816,11 @@ const Contacts = () => {
           await Promise.all([...selectedContacts].map(id =>
             axios.delete(`/api/contacts/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } })
           ));
-          setContacts(prev => prev.filter(c => !selectedContacts.has(c.id)));
+          queryClient.invalidateQueries(['contacts']);
           setMessage(`${selectedContacts.size} contact(s) deleted!`);
           setSelectedContacts(new Set());
           setSelectedContact(null);
-          fetchContacts();
         } catch (err) {
-          console.error('Delete selected error:', err);
           setError('Failed to delete selected contacts: ' + err.message);
         } finally {
           setLoading(false);
@@ -834,9 +904,9 @@ const Contacts = () => {
 
   // Render
   return (
-    <div className="min-h-screen bg-gray-100 p-6 rounded-[10px] border">
-      <style>{customStyles}</style>
-      <div className="max-w-7xl mx-auto">
+<div className="min-h-screen bg-gray-100 p-6 rounded-[10px] border">
+  <style>{customStyles}</style>
+  <div className="max-w-7xl mx-auto">
         <div className="bg-white shadow-lg rounded-xl p-4 md:p-6 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6 transform transition-all duration-300 hover:shadow-xl">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800 whitespace-nowrap">Contacts</h1>
           <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
@@ -995,23 +1065,30 @@ const Contacts = () => {
           </div>
         </div>
 
+        
+        {isLoading && 
+        <div className="p-6 text-center">
+          <LoadingIndicator /> 
+        </div>
+            }
         <div className="bg-white shadow-lg rounded-xl overflow-hidden transform hover:shadow-xl transition-shadow">
-          {loading && (
-            <div className="p-6 text-center">
-              <FaSpinner className="animate-spin text-blue-600 text-2xl" />
-            </div>
-          )}
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead className="bg-blue-50">
                 <tr>
-                  <th className="px-6 py-4 text-left text-gray-700 font-semibold">
-                    <input
-                      type="checkbox"
-                      className="custom-checkbox"
-                      checked={contacts.length > 0 && contacts.every(contact => selectedContacts.has(contact.id))}
-                      onChange={handleSelectAll}
-                    />
+                <th className="px-6 py-4 text-left text-gray-700 font-semibold">
+                    <label className="checkbox-wrapper">
+                      <input
+                        type="checkbox"
+                        checked={contacts.length > 0 && contacts.every(contact => selectedContacts.has(contact.id))}
+                        onChange={handleSelectAll}
+                      />
+                      <span>
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </span>
+                    </label>
                   </th>
                   {['name', 'email', 'phone', 'owner', 'status', 'company', 'createdAt'].map(col => (
                     <th
@@ -1034,15 +1111,21 @@ const Contacts = () => {
                     className="hover:bg-gray-50 transition-colors"
                     onClick={() => debouncedSetSelectedContact(contact)}
                   >
-                    <td className="px-6 py-4">
-                      <input
-                        type="checkbox"
-                        className="custom-checkbox"
-                        checked={selectedContacts.has(contact.id)}
-                        onChange={() => handleSelectContact(contact.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </td>
+                      <td className="px-6 py-4">
+                        <label className="checkbox-wrapper">
+                          <input
+                            type="checkbox"
+                            checked={selectedContacts.has(contact.id)}
+                            onChange={() => handleSelectContact(contact.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <span>
+                            <svg viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </span>
+                        </label>
+                      </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-4">
                         {contact.photoUrl ? (
@@ -1233,141 +1316,91 @@ const Contacts = () => {
 
         {/* Import Modal */}
         {showImportModal && (
-          <div className="fixed inset-0 bg-gray-800 bg-opacity-60 flex items-center justify-center h-screen" style={{ zIndex: 9990 }}>
-            <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-3xl max-h-[70vh] overflow-y-auto relative transform hover:scale-102 transition-all duration-300 border-t-4 border-purple-500">
-              <button
-                onClick={() => {
-                  setShowImportModal(false);
-                  setPreviewData(null);
-                  setSelectedColumns([]);
-                  setImportProgress(0);
-                  setImportFile(null);
-                  setError(null);
-                }}
-                className="absolute top-4 right-4 text-gray-600 hover:text-red-500 text-2xl font-bold transition-colors duration-200"
-              >
-                ✕
-              </button>
-              <h2 className="text-2xl font-bold mb-6 text-gray-900">Import Contacts</h2>
-              <div className="space-y-4">
-                <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                  <label className="block text-gray-700 font-semibold mb-2">File Type</label>
-                  <select
-                    value={importType}
-                    onChange={(e) => setImportType(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-800 shadow-sm transition-all duration-200 hover:border-purple-400"
-                  >
-                    <option value="csv">CSV</option>
-                    <option value="excel">Excel (.xlsx)</option>
-                  </select>
-                </div>
-                <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                  <label className="block text-gray-700 font-semibold mb-2">Upload File (Max 100MB)</label>
-                  <input
-                    type="file"
-                    accept={importType === 'csv' ? '.csv' : '.xlsx'}
-                    onChange={(e) => setImportFile(e.target.files[0])}
-                    className="w-full text-gray-800 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition-all duration-200"
-                  />
-                  <p className="text-xs text-gray-500 mt-2">Expected Headers: Name, Email, Phone, Status, Company, Notes, Owner</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="updateExisting"
-                    checked={updateExisting}
-                    onChange={(e) => setUpdateExisting(e.target.checked)}
-                    className="custom-checkbox"
-                  />
-                  <label htmlFor="updateExisting" className="text-gray-700">Update existing contacts</label>
-                </div>
-                <div className="flex justify-end space-x-4">
-                  <button
-                    onClick={handlePreview}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 font-semibold transition-colors duration-200 flex items-center shadow-md hover:shadow-lg"
-                    disabled={loading}
-                  >
-                    {loading && !previewData && <FaSpinner className="animate-spin mr-2" />}
-                    Upload for Preview
-                  </button>
-                </div>
-                {previewData && previewData.headers && previewData.headers.length > 0 && previewData.contacts && previewData.contacts.length > 0 ? (
-                  <div className="mt-4">
-                    <h3 className="text-lg font-semibold mb-2 text-gray-900">Preview of Contacts to be Imported</h3>
-                    {previewData.unmappedFields && previewData.unmappedFields.length > 0 && (
-                      <p className="text-yellow-600 mb-2">
-                        Unmapped columns (added to notes): {previewData.unmappedFields.join(', ')}
-                      </p>
-                    )}
-                    <div className="mb-4">
-                      <label className="block text-gray-700 font-semibold mb-2">Select Columns to Import</label>
-                      <div className="flex flex-wrap gap-3">
-                        {previewData.headers.map(header => (
-                          <label key={header} className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedColumns.includes(header.toLowerCase())}
-                              onChange={(e) => {
-                                setSelectedColumns(prev =>
-                                  e.target.checked ? [...prev, header.toLowerCase()] : prev.filter(col => col !== header.toLowerCase())
-                                );
-                              }}
-                              className="custom-checkbox"
-                            />
-                            <span className="text-sm text-gray-700">{header}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="mb-4">
-                      <label className="block text-gray-700 font-semibold mb-2">Contacts to be Created</label>
-                      <select multiple className="preview-select" size="5">
-                        {previewData.contacts.map((contact, index) => (
-                          <option key={index} value={index}>
-                            {contact.name || 'Unnamed'} (Email: {contact.email || 'N/A'}, Phone: {contact.phone || 'N/A'})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {importProgress > 0 && (
-                      <div className="mt-4">
-                        <label className="block text-gray-700 font-semibold">Import Progress</label>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
-                          <div className="bg-purple-600 h-2.5 rounded-full" style={{ width: `${importProgress}%` }}></div>
-                        </div>
-                        <p className="text-sm text-gray-600">{Math.round(importProgress)}%</p>
-                      </div>
-                    )}
-                    <div className="fixed-buttons">
-                      <button
-                        onClick={() => {
-                          setPreviewData(null);
-                          setSelectedColumns([]);
-                          setImportProgress(0);
-                        }}
-                        className="px-4 py-2 bg-gray-200 rounded-xl hover:bg-gray-300 text-gray-800 font-semibold transition-colors duration-200 shadow-md hover:shadow-lg"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleImportConfirm}
-                        className="px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 font-semibold transition-colors duration-200 flex items-center shadow-md hover:shadow-lg"
-                        disabled={loading}
-                      >
-                        {loading && <FaSpinner className="animate-spin mr-2" />}
-                        Confirm Import
-                      </button>
-                    </div>
-                  </div>
-                ) : previewData ? (
-                  <div className="mt-4 text-red-600">
-                    No valid data to preview. Please check the file format and try again.
-                  </div>
-                ) : null}
+  <div className="fixed inset-0 bg-gray-800 bg-opacity-60 flex items-center justify-center z-[9990] p-4">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto transform transition-all duration-300 border-t-4 border-purple-500">
+      <div className="relative p-6">
+        <button onClick={() => { setShowImportModal(false); setPreviewData(null); setSelectedColumns([]); setImportFile(null); setError(null); }} className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-2xl font-bold transition-colors duration-200">
+          ✕
+        </button>
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Import Contacts</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">File Type</label>
+            <select value={importType} onChange={(e) => setImportType(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-800 shadow-sm transition-all duration-200 hover:border-purple-400">
+              <option value="csv">CSV</option>
+              <option value="excel">Excel (.xlsx)</option>
+            </select>
+          </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Upload File (Max 100MB)</label>
+            <input type="file" accept={importType === 'csv' ? '.csv' : '.xlsx'} onChange={(e) => setImportFile(e.target.files[0])} className="w-full text-gray-800 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition-all duration-200" />
+            <p className="text-xs text-gray-500 mt-2">Expected Headers: Name, Email, Phone, Status, Company, Notes, Owner</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between mb-6">
+          <label className="flex items-center space-x-2">
+            <input type="checkbox" checked={updateExisting} onChange={(e) => setUpdateExisting(e.target.checked)} className="h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500" />
+            <span className="text-sm text-gray-700">Update existing contacts</span>
+          </label>
+          <button onClick={handlePreview} className="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 font-semibold transition-colors duration-200 flex items-center shadow-md disabled:bg-gray-400" disabled={loading || !importFile}>
+            {loading && !previewData && <FaSpinner className="animate-spin mr-2" />}
+            Upload for Preview
+          </button>
+        </div>
+        {previewData && previewData.headers && previewData.headers.length > 0 && previewData.contacts && previewData.contacts.length > 0 ? (
+          <div className="space-y-6">
+            {previewData.unmappedFields && previewData.unmappedFields.length > 0 && (
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+                <p className="text-sm text-yellow-700">
+                  Unmapped columns (added to notes): <span className="font-medium">{previewData.unmappedFields.join(', ')}</span>
+                </p>
+              </div>
+            )}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Select Columns to Import</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                {previewData.headers.map(header => (
+                  <label key={header} className="flex items-center space-x-2">
+                    <input type="checkbox" checked={selectedColumns.includes(header.toLowerCase())} onChange={(e) => setSelectedColumns(prev => e.target.checked ? [...prev, header.toLowerCase()] : prev.filter(col => col !== header.toLowerCase()))} className="h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500" />
+                    <span className="text-sm text-gray-700 capitalize">{header}</span>
+                  </label>
+                ))}
               </div>
             </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Contacts to be Imported ({previewData.contacts.length})</h3>
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 max-h-64 overflow-y-auto">
+                <div className="space-y-2">
+                  {previewData.contacts.map((contact, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-white rounded-lg shadow-sm hover:bg-gray-100 transition-colors duration-200">
+                      <div className="text-sm text-gray-800">
+                        <span className="font-medium">{contact.name || 'Unnamed'}</span>
+                        <span className="text-gray-500 ml-2">(Email: {contact.email || 'N/A'}, Phone: {contact.phone || 'N/A'})</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-4 pt-4">
+              <button onClick={() => { setPreviewData(null); setSelectedColumns([]); }} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-xl hover:bg-gray-300 font-semibold transition-colors duration-200 shadow-md">
+                Cancel Preview
+              </button>
+              <button onClick={handleImportConfirm} className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold transition-colors duration-200 flex items-center shadow-md disabled:bg-gray-400" disabled={loading || selectedColumns.length === 0}>
+                {loading && <FaSpinner className="animate-spin mr-2" />}
+                Confirm Import
+              </button>
+            </div>
           </div>
-        )}
+        ) : previewData ? (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
+            <p className="text-sm text-red-700">No valid data to preview. Please check the file format and try again.</p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  </div>
+)}
 
         {/* Export Popup */}
         {showExportModal && (
@@ -1499,34 +1532,36 @@ const Contacts = () => {
         <div className="flex flex-col">
           <label className="form-label">Company</label>
           <div className="flex items-center gap-2">
-            <Select
-              options={companyOptions}
-              value={formData.company ? companyOptions.find(opt => opt.value === formData.company.id) : null}
-              onChange={(opt) => setFormData({ ...formData, company: opt?.company || null })}
-              placeholder="Select a company"
-              className="form-select-container flex-1"
-              styles={{
-                control: (provided) => ({
-                  ...provided,
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  padding: '0.25rem',
-                  background: '#ffffff',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                  '&:hover': { borderColor: '#93c5fd' },
-                  '&:focus': { borderColor: '#3b82f6', boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.3)' },
-                }),
-                placeholder: (provided) => ({ ...provided, color: '#9ca3af', fontSize: '0.9rem' }),
-                option: (provided, state) => ({
-                  ...provided,
-                  backgroundColor: state.isFocused ? '#eff6ff' : 'white',
-                  color: '#374151',
-                  fontSize: '0.9rem',
-                  '&:hover': { backgroundColor: '#dbeafe' },
-                }),
-              }}
-              isClearable
-            />
+                  <AsyncSelect
+          cacheOptions
+          defaultOptions // Loads some options when the dropdown opens
+          loadOptions={loadCompanyOptions}
+          value={formData.company ? { value: formData.company.id, label: formData.company.name, company: formData.company } : null}
+          onChange={(opt) => setFormData({ ...formData, company: opt?.company || null })}
+          placeholder="Search for a company"
+          className="form-select-container flex-1"
+          styles={{
+            control: (provided) => ({
+              ...provided,
+              border: '1px solid #d1d5db',
+              borderRadius: '0.5rem',
+              padding: '0.25rem',
+              background: '#ffffff',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+              '&:hover': { borderColor: '#93c5fd' },
+              '&:focus': { borderColor: '#3b82f6', boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.3)' },
+            }),
+            placeholder: (provided) => ({ ...provided, color: '#9ca3af', fontSize: '0.9rem' }),
+            option: (provided, state) => ({
+              ...provided,
+              backgroundColor: state.isFocused ? '#eff6ff' : 'white',
+              color: '#374151',
+              fontSize: '0.9rem',
+              '&:hover': { backgroundColor: '#dbeafe' },
+            }),
+          }}
+          isClearable
+        />
             <button
               type="button"
               onClick={handleCreateCompanyRedirect}

@@ -1,46 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { 
-  FaPlus, FaCheck, FaEdit, FaTrash, FaUser, FaFilter, FaCalendarAlt, 
-  FaSpinner, FaTasks, FaBan, FaExclamationCircle, FaTimes, FaTag, 
+import {
+  FaPlus, FaCheck, FaEdit, FaTrash, FaUser, FaFilter, FaCalendarAlt,
+  FaSpinner, FaTasks, FaBan, FaExclamationCircle, FaTimes, FaTag,
   FaFolderOpen, FaSearch, FaExpandArrowsAlt, FaExclamationTriangle
 } from 'react-icons/fa';
 import axios from 'axios';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Authentication and API Setup
-const getAuthToken = () => localStorage.getItem('token');
-
 const api = axios.create({
   baseURL: 'http://localhost:8080/api',
   headers: { 'Content-Type': 'application/json' },
 });
 
 api.interceptors.request.use(config => {
-  const token = getAuthToken();
+  const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-    console.log('Token attached to request:', token); // Debug token
-  } else {
-    console.warn('No token found in localStorage, request will be unauthenticated');
   }
   return config;
-}, error => {
-  console.error('Request interceptor error:', error);
-  return Promise.reject(error);
-});
+}, error => Promise.reject(error));
 
-// Helper to fetch current user (for testing auth)
-const fetchCurrentUser = async () => {
-  try {
-    const response = await api.get('/users/me'); // Assuming an endpoint like this exists
-    return response.data;
-  } catch (error) {
-    console.error('Failed to fetch current user:', error);
-    return null;
-  }
+const getInitials = (name = '') => {
+  if (!name) return '??';
+  const names = name.split(' ');
+  return names.map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
 };
 
-// Styling Helper Functions (unchanged)
+const getColor = () => '#b0b0b0';
+
+// Styling Helper Functions
 const getPriorityColor = (priority) => {
   switch (priority) {
     case 'HIGH': return 'bg-gradient-to-r from-red-500 to-red-600 text-white';
@@ -78,7 +68,29 @@ const getStatusColor = (status) => {
   }
 };
 
-// Custom Modal Component (unchanged)
+// Message Display Component
+const MessageDisplay = ({ message, type, onClose }) => {
+  if (!message) return null;
+
+  const bgColor = type === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-red-100 border-red-500 text-red-700';
+
+  return (
+    <div className={`fixed top-5 left-1/2 transform -translate-x-1/2 mt-5 p-4 ${bgColor} border-l-4 rounded-xl shadow-lg flex items-center justify-between animate-slideIn max-w-3xl w-full z-[1000]`}>
+      <div className="flex items-center">
+        {type === 'success' ? <FaCheck className="text-xl mr-3" /> : <FaExclamationCircle className="text-xl mr-3" />}
+        <span className="text-base">{message}</span>
+      </div>
+      <button
+        onClick={onClose}
+        className="p-1 hover:bg-opacity-20 rounded-full transition-colors duration-200"
+      >
+        <FaTimes className="w-4 h-4" />
+      </button>
+    </div>
+  );
+};
+
+// Custom Modal Component
 const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, loading }) => {
   if (!isOpen) return null;
 
@@ -133,103 +145,172 @@ const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, l
   );
 };
 
-// Task Details Popup Component (unchanged)
-const TaskDetailsPopup = ({ task, show, onClose, column }) => (
-  <div 
-    className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 
-      ${show ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
-  >
-    <div 
-      className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg transform transition-all duration-300 
-        scale-95 animate-scaleIn"
+// Task Details Popup Component
+const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelete, moveLoading, deleteLoading, users }) => {
+  const assignedUser = users?.find(user => user.id === task.assignedUserId);
+
+  return (
+    <div
+      className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 
+        ${show ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
     >
-      <div className="flex justify-between items-start mb-6">
-        <h2 className={`text-2xl font-bold text-gray-800 ${column === 'Cancelled' ? 'line-through' : ''}`}>
-          {task.title}
-        </h2>
-        <button 
-          onClick={onClose} 
-          className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
-        >
-          <FaTimes className="w-5 h-5" />
-        </button>
-      </div>
-      <div className="space-y-4 text-gray-700">
-        <div className="flex items-center space-x-3">
-          <FaTag className="text-gray-400" />
-          <div>
-            <span className="font-medium">Priority: </span>
-            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(task.priority)}`}>
-              {task.priority}
+      <div
+        className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl transform transition-all duration-300 scale-95 animate-scaleIn"
+      >
+        <div className="flex justify-between items-start mb-6">
+          <h2 className={`text-2xl font-bold text-gray-800 break-words overflow-hidden ${column === 'Cancelled' ? 'line-through' : ''}`}>
+            {task.title}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
+          >
+            <FaTimes className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="space-y-4 text-gray-700">
+          <div className="flex items-center space-x-3">
+            <FaTag className="text-gray-400" />
+            <div>
+              <span className="font-medium">Priority: </span>
+              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(task.priority)}`}>
+                {task.priority}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3">
+            <FaCalendarAlt className="text-gray-400" />
+            <span>
+              <span className="font-medium">Deadline: </span>
+              {new Date(task.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
           </div>
-        </div>
-        <div className="flex items-center space-x-3">
-          <FaCalendarAlt className="text-gray-400" />
-          <span>
-            <span className="font-medium">Deadline: </span>
-            {new Date(task.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-          </span>
-        </div>
-        <div className="flex items-center space-x-3">
-          <FaUser className="text-gray-400" />
-          <span>
-            <span className="font-medium">Assigned To: </span>
-            {task.assignedUserUsername || 'Unassigned'}
-          </span>
-        </div>
-        <div className="flex items-center space-x-3">
-          <FaFolderOpen className="text-gray-400" />
-          <span>
+          <div className="flex items-center space-x-3">
+            <FaUser className="text-gray-400" />
+            <div className="flex items-center space-x-2">
+
+              
+                <span className="font-medium">Assigned To: </span>
+                <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden "
+                style={{ backgroundColor: assignedUser?.profilePhotoUrl ? 'transparent' : getColor() }}
+              >
+                {assignedUser?.profilePhotoUrl ? (
+                  <img
+                    src={`http://localhost:8080${assignedUser.profilePhotoUrl}`}
+                    alt={assignedUser?.username}
+                    className="w-8 h-8 rounded-full shadow-md object-cover"
+                  />
+                ) : (
+                  getInitials(assignedUser?.username || 'Unassigned')
+                )}
+                
+              </div>
+              <span className=' font-semibold'>
+              {task.assignedUserUsername || 'Unassigned'}
+              </span>
+             
+            </div>
+          </div>
+          <div className="flex items-center space-x-3">
+            <FaFolderOpen className="text-gray-400" />
             <span className="font-medium">Opportunity: </span>
-            {task.opportunityTitle || 'No opportunity'}
-          </span>
+            <span className="block break-words overflow-hidden text-gray-700">
+              {task.opportunityTitle || 'No opportunity'}
+            </span>
+          </div>
+          <div className="flex items-center space-x-3">
+            <FaTag className="text-gray-400" />
+            <span>
+              <span className="font-medium">Task Type: </span>
+              {task.typeTask}
+            </span>
+          </div>
+          <div className="space-y-2">
+            <span className="font-medium">Description:</span>
+            <p className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg shadow-inner">
+              {task.description || 'No description'}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <FaTag className="text-gray-400" />
-          <span>
-            <span className="font-medium">Task Type: </span>
-            {task.typeTask}
-          </span>
-        </div>
-        <div className="space-y-2">
-          <span className="font-medium">Description:</span>
-          <p className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg shadow-inner">
-            {task.description || 'No description'}
-          </p>
+        <div className="mt-6 flex justify-end space-x-3 flex-wrap gap-2">
+          <button
+            onClick={() => onMove(task.id, 'Done')}
+            className="px-4 py-2 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all duration-200 flex items-center shadow-md"
+            disabled={moveLoading}
+          >
+            {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaCheck className="mr-2" />}
+            Done
+          </button>
+          <button
+            onClick={() => onMove(task.id, 'InProgress')}
+            className="px-4 py-2 bg-yellow-600 text-white rounded-full hover:bg-yellow-700 transition-all duration-200 flex items-center shadow-md"
+            disabled={moveLoading}
+          >
+            {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaTasks className="mr-2" />}
+            In Progress
+          </button>
+          <button
+            onClick={() => onMove(task.id, 'Cancelled')}
+            className="px-4 py-2 bg-gray-600 text-white rounded-full hover:bg-gray-700 transition-all duration-200 flex items-center shadow-md"
+            disabled={moveLoading}
+          >
+            {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaBan className="mr-2" />}
+            Cancel
+          </button>
+          <button
+            onClick={() => onEdit(task)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all duration-200 flex items-center shadow-md"
+          >
+            <FaEdit className="mr-2" />
+            Edit
+          </button>
+          <button
+            onClick={() => onDelete(task.id, column)}
+            className="px-4 py-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-all duration-200 flex items-center shadow-md"
+            disabled={deleteLoading}
+          >
+            {deleteLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaTrash className="mr-2" />}
+            Delete
+          </button>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-// Task Card Component (unchanged)
-const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted }) => {
+// Task Card Component (Kanban View)
+const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users }) => {
   const [showDetails, setShowDetails] = useState(false);
+  const assignedUser = users?.find(user => user.id === task.assignedUserId);
 
   return (
     <>
-      <div 
+      <div
         className={`group relative px-6 py-4 bg-white rounded-xl shadow-lg border-l-4 ${getPriorityBorderColor(task.priority)} 
         hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 flex flex-col w-full max-w-full
         ${isHighlighted ? `${getHighlightColor(task.priority)} animate-pulse` : ''}`}
       >
         <div className="flex justify-between items-start mb-3">
           <div className="flex-1 pr-4">
-            <h4 className={`text-lg font-semibold text-gray-800 break-words ${column === 'Cancelled' ? 'line-through' : ''}`}>
-              {task.title}
+            <h4  className={`relative group text-lg font-semibold text-gray-800 max-w-[8ch] truncate ${column === 'Cancelled' ? 'line-through' : ''}`}>
+              {task.title.length > 8 ? task.title.slice(0, 8) + "..." : task.title}
+              <small className="absolute left-0 top-full mt-1 w-max max-w-xs bg-gray-800 text-white text-xs p-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                {task.title}
+              </small>
+              
             </h4>
           </div>
           <div className="flex items-center space-x-2">
-            <span 
+            <span
               className={`px-3 py-1 text-xs font-medium rounded-full shadow-sm ${getPriorityColor(task.priority)}`}
             >
               {task.priority}
             </span>
-            <button 
+            <button
               onClick={() => setShowDetails(true)}
               className="p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200"
-              title="View Description"
+              title="View Details"
             >
               <FaExpandArrowsAlt className="w-5 h-5" />
             </button>
@@ -241,12 +322,28 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted }) => 
             <span>{new Date(task.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
           </div>
           <div className="flex items-center space-x-2">
-            <FaUser className="text-gray-400" />
+          <FaUser className="text-gray-400" />
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden"
+              style={{ backgroundColor: assignedUser?.profilePhotoUrl ? 'transparent' : getColor() }}
+            >
+              {assignedUser?.profilePhotoUrl ? (
+                <img
+                  src={`http://localhost:8080${assignedUser.profilePhotoUrl}`}
+                  alt={assignedUser?.username}
+                  className="w-6 h-6 rounded-full shadow-md object-cover"
+                />
+              ) : (
+                getInitials(assignedUser?.username || 'Unassigned')
+              )}
+            </div>
             <span>{task.assignedUserUsername || 'Unassigned'}</span>
           </div>
           <div className="flex items-center space-x-2">
             <FaFolderOpen className="text-gray-400 w-4 h-4" />
-            <span>{task.opportunityTitle || 'No opportunity'}</span>
+            <span className="truncate block max-w-[90%] text-gray-700">
+              {task.opportunityTitle || 'No opportunity'}
+            </span>
           </div>
           <div className="flex items-center space-x-2">
             <FaTag className="text-gray-400" />
@@ -256,17 +353,17 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted }) => 
         <div className="mt-4">
           <div className="flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             {column !== 'Done' && (
-              <button 
-                onClick={() => onMove(task.id, 'Done')} 
+              <button
+                onClick={() => onMove(task.id, 'Done')}
                 className="p-2 text-green-600 hover:bg-green-100 rounded-full transition-colors duration-200"
                 title="Mark as Done"
               >
                 <FaCheck className="w-5 h-5" />
               </button>
             )}
-            {column !== 'InProgress' && (
-              <button 
-                onClick={() => onMove(task.id, 'InProgress')} 
+            {column !== 'InProgress' && column !== 'Done' && column !== 'Cancelled' && (
+              <button
+                onClick={() => onMove(task.id, 'InProgress')}
                 className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-full transition-colors duration-200"
                 title="Move to In Progress"
               >
@@ -274,235 +371,286 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted }) => 
               </button>
             )}
             {column !== 'Cancelled' && (
-              <button 
-                onClick={() => onMove(task.id, 'Cancelled')} 
+              <button
+                onClick={() => onMove(task.id, 'Cancelled')}
                 className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors duration-200"
                 title="Cancel Task"
               >
                 <FaBan className="w-5 h-5" />
               </button>
             )}
-            <button 
-              onClick={() => onEdit(task)} 
-              className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors duration-200"
-              title="Edit Task"
-            >
-              <FaEdit className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={() => onDelete(task.id, column)} 
-              className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors duration-200"
-              title="Delete Task"
-            >
-              <FaTrash className="w-5 h-5" />
-            </button>
           </div>
         </div>
       </div>
-      <TaskDetailsPopup 
-        task={task} 
-        show={showDetails} 
-        onClose={() => setShowDetails(false)} 
-        column={column} 
+      <TaskDetailsPopup
+        task={task}
+        show={showDetails}
+        onClose={() => setShowDetails(false)}
+        column={column}
+        onMove={onMove}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        moveLoading={false} // Controlled by parent
+        deleteLoading={false} // Controlled by parent
+        users={users}
       />
     </>
   );
 };
 
-// Task Column Component (unchanged)
-const TaskColumn = ({ column, tasksList, onMove, onEdit, onDelete, highlightedTaskId }) => (
-  <div 
-    className={`bg-white rounded-2xl shadow-lg p-6 border-t-4 ${getStatusColor(column)} 
-      transition-all duration-300 hover:shadow-xl`}
-  >
-    <div className="flex justify-between items-center mb-6">
-      <h3 className="text-xl font-bold text-gray-800">{column}</h3>
-      <span className="px-3 py-1 bg-gray-100 text-gray-600 text-sm font-medium rounded-full shadow-sm">
-        {tasksList.length} task{tasksList.length !== 1 ? 's' : ''}
-      </span>
-    </div>
-    <div className="space-y-4 min-h-[200px]">
-      {tasksList.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-full text-gray-500">
-          <FaExclamationCircle className="text-2xl mb-2" />
-          <p>No tasks in this category</p>
-        </div>
-      ) : (
-        tasksList.map(task => (
-          <TaskCard 
-            key={task.id} 
-            task={task} 
-            onMove={onMove} 
-            onEdit={onEdit} 
-            onDelete={onDelete} 
-            column={column} 
-            isHighlighted={task.id.toString() === highlightedTaskId}
-          />
-        ))
-      )}
-    </div>
-  </div>
-);
+// Add Task Modal Component
+const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = [], opportunities = [], loading }) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filteredUsers, setFilteredUsers] = useState(users);
 
-// Add Task Modal Component (unchanged)
-const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users, opportunities, loading }) => (
-  <div 
-    className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 
-      ${show ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
-  >
-    <div 
-      className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl transform transition-all duration-300 
-        scale-95 animate-scaleIn"
-    >
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-          <FaPlus className="mr-2 text-blue-600" /> New Task
-        </h2>
-        <button 
-          onClick={onClose} 
-          className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
-        >
-          <FaTimes className="w-5 h-5" />
-        </button>
-      </div>
-      <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-gray-700">Title</label>
-          <input
-            type="text"
-            value={newTask.title}
-            onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-              focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            placeholder="Enter task title"
-            required
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-gray-700">Deadline</label>
-          <div className="relative">
-            <input
-              type="datetime-local"
-              value={newTask.deadline}
-              onChange={(e) => setNewTask({ ...newTask, deadline: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pl-10"
-              required
-            />
-            <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          </div>
-        </div>
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-gray-700">Priority</label>
-          <select
-            value={newTask.priority}
-            onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-              focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            required
-          >
-            <option value="HIGH">High</option>
-            <option value="MEDIUM">Medium</option>
-            <option value="LOW">Low</option>
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-gray-700">Task Type</label>
-          <select
-            value={newTask.typeTask}
-            onChange={(e) => setNewTask({ ...newTask, typeTask: e.target.value })}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-              focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            required
-          >
-            <option value="CALL">Call</option>
-            <option value="EMAIL">Email</option>
-            <option value="MEETING">Meeting</option>
-            <option value="OTHER">Other</option>
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-gray-700">Assigned To</label>
-          <select
-            value={newTask.assignedUserId}
-            onChange={(e) => setNewTask({ ...newTask, assignedUserId: e.target.value })}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-              focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-          >
-            <option value="">Select a user</option>
-            {users.map(user => (
-              <option key={user.id} value={user.id}>{user.username}</option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-gray-700">Opportunity</label>
-          <select
-            value={newTask.opportunityId}
-            onChange={(e) => setNewTask({ ...newTask, opportunityId: e.target.value })}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-              focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-          >
-            <option value="">Select an opportunity</option>
-            {opportunities.map(opportunity => (
-              <option key={opportunity.id} value={opportunity.id}>{opportunity.title}</option>
-            ))}
-          </select>
-        </div>
-        <div className="md:col-span-2 space-y-1">
-          <label className="block text-sm font-medium text-gray-700">Description</label>
-          <textarea
-            value={newTask.description}
-            onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-              focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 h-32"
-            placeholder="Describe the task here..."
-            required
-          />
-        </div>
-        <div className="md:col-span-2 flex justify-end space-x-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full 
-              hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full 
-              hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
-            disabled={loading}
-          >
-            {loading && <FaSpinner className="animate-spin mr-2" />}
-            Add Task
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-);
-
-// Edit Task Modal Component (unchanged)
-const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users, opportunities, loading }) => {
-  if (!show || !editTask) return null;
+  const handleSearch = (e) => {
+    const query = e.target.value;
+    setSearch(query);
+    setFilteredUsers(
+      users.filter((user) =>
+        user.username.toLowerCase().includes(query.toLowerCase())
+      )
+    );
+  };
 
   return (
-    <div 
+    <div
       className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 
         ${show ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
     >
-      <div 
-        className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl transform transition-all duration-300 
-          scale-95 animate-scaleIn"
+      <div
+        className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl transform transition-all duration-300 scale-95 animate-scaleIn"
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+            <FaPlus className="mr-2 text-blue-600" /> New Task
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
+          >
+            <FaTimes className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Title</label>
+            <input
+              type="text"
+              value={newTask.title}
+              onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              placeholder="Enter task title"
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Deadline</label>
+            <div className="relative">
+              <input
+                type="datetime-local"
+                value={newTask.deadline}
+                onChange={(e) => setNewTask({ ...newTask, deadline: e.target.value })}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pl-10"
+                required
+              />
+              <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Priority</label>
+            <select
+              value={newTask.priority}
+              onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              required
+            >
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Task Type</label>
+            <select
+              value={newTask.typeTask}
+              onChange={(e) => setNewTask({ ...newTask, typeTask: e.target.value })}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              required
+            >
+              <option value="CALL">Call</option>
+              <option value="EMAIL">Email</option>
+              <option value="MEETING">Meeting</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+          <div className="space-y-1 relative">
+            <label className="block text-sm font-medium text-gray-700">Assigned To</label>
+            <div
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 cursor-pointer"
+              onClick={() => setShowDropdown(!showDropdown)}
+            >
+              {newTask.assignedUserId ? (
+                users
+                  .filter((user) => user.id === newTask.assignedUserId)
+                  .map((user) => (
+                    <div key={user.id} className="flex items-center space-x-3">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
+                        style={{
+                          backgroundColor: user.profilePhotoUrl ? "transparent" : getColor(),
+                        }}
+                      >
+                        {user.profilePhotoUrl ? (
+                          <img
+                            src={`http://localhost:8080${user.profilePhotoUrl}`}
+                            alt={user.username}
+                            className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
+                          />
+                        ) : (
+                          getInitials(user.username)
+                        )}
+                      </div>
+                      <span>{user.username}</span>
+                    </div>
+                  ))
+              ) : (
+                <span>Select a user</span>
+              )}
+              <svg
+                className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${showDropdown ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </div>
+            {showDropdown && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={handleSearch}
+                  className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Search users..."
+                />
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center space-x-3 min-w-0"
+                      onClick={() => {
+                        setNewTask({ ...newTask, assignedUserId: user.id });
+                        setShowDropdown(false);
+                      }}
+                    >
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
+                        style={{
+                          backgroundColor: user.profilePhotoUrl ? "transparent" : getColor(),
+                        }}
+                      >
+                        {user.profilePhotoUrl ? (
+                          <img
+                            src={`http://localhost:8080${user.profilePhotoUrl}`}
+                            alt={user.username}
+                            className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
+                          />
+                        ) : (
+                          getInitials(user.username)
+                        )}
+                      </div>
+                      <span>{user.username}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-4 py-2 text-gray-500">No users found</div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Opportunity</label>
+            <select
+              value={newTask.opportunityId}
+              onChange={(e) => setNewTask({ ...newTask, opportunityId: e.target.value })}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            >
+              <option value="">Select an opportunity</option>
+              {opportunities.map(opportunity => (
+                <option key={opportunity.id} value={opportunity.id}>{opportunity.title}</option>
+              ))}
+            </select>
+          </div>
+          <div className="md:col-span-2 space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Description</label>
+            <textarea
+              value={newTask.description}
+              onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 h-32"
+              placeholder="Describe the task here..."
+              required
+            />
+          </div>
+          <div className="md:col-span-2 flex justify-end space-x-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
+              disabled={loading}
+            >
+              {loading && <FaSpinner className="animate-spin mr-2" />}
+              Add Task
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Edit Task Modal Component
+const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users = [], opportunities = [], loading }) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filteredUsers, setFilteredUsers] = useState(users);
+
+  const handleSearch = (e) => {
+    const query = e.target.value;
+    setSearch(query);
+    setFilteredUsers(
+      users.filter((user) =>
+        user.username.toLowerCase().includes(query.toLowerCase())
+      )
+    );
+  };
+
+  if (!show || !editTask) return null;
+
+  return (
+    <div
+      className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 
+        ${show ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl transform transition-all duration-300 scale-95 animate-scaleIn"
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-800 flex items-center">
             <FaEdit className="mr-2 text-blue-600" /> Edit Task
           </h2>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
           >
             <FaTimes className="w-5 h-5" />
@@ -515,8 +663,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users, 
               type="text"
               value={editTask.title || ''}
               onChange={(e) => setEditTask({ ...editTask, title: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               placeholder="Enter task title"
               required
             />
@@ -528,8 +675,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users, 
                 type="datetime-local"
                 value={editTask.deadline || ''}
                 onChange={(e) => setEditTask({ ...editTask, deadline: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-                  focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pl-10"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pl-10"
                 required
               />
               <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -540,8 +686,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users, 
             <select
               value={editTask.priority || 'MEDIUM'}
               onChange={(e) => setEditTask({ ...editTask, priority: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               required
             >
               <option value="HIGH">High</option>
@@ -554,8 +699,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users, 
             <select
               value={editTask.typeTask || 'CALL'}
               onChange={(e) => setEditTask({ ...editTask, typeTask: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               required
             >
               <option value="CALL">Call</option>
@@ -564,28 +708,99 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users, 
               <option value="OTHER">Other</option>
             </select>
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1 relative">
             <label className="block text-sm font-medium text-gray-700">Assigned To</label>
-            <select
-              value={editTask.assignedUserId || ''}
-              onChange={(e) => setEditTask({ ...editTask, assignedUserId: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            <div
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 cursor-pointer"
+              onClick={() => setShowDropdown(!showDropdown)}
             >
-              <option value="">Select a user</option>
-              {users.map(user => (
-                <option key={user.id} value={user.id}>{user.username}</option>
-              ))}
-            </select>
+              {editTask.assignedUserId ? (
+                users
+                  .filter((user) => user.id === editTask.assignedUserId)
+                  .map((user) => (
+                    <div key={user.id} className="flex items-center space-x-3">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
+                        style={{
+                          backgroundColor: user.profilePhotoUrl ? "transparent" : getColor(),
+                        }}
+                      >
+                        {user.profilePhotoUrl ? (
+                          <img
+                            src={`http://localhost:8080${user.profilePhotoUrl}`}
+                            alt={user.username}
+                            className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
+                          />
+                        ) : (
+                          getInitials(user.username)
+                        )}
+                      </div>
+                      <span>{user.username}</span>
+                    </div>
+                  ))
+              ) : (
+                <span>Select a user</span>
+              )}
+              <svg
+                className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${showDropdown ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </div>
+            {showDropdown && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={handleSearch}
+                  className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Search users..."
+                />
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center space-x-3 min-w-0"
+                      onClick={() => {
+                        setEditTask({ ...editTask, assignedUserId: user.id });
+                        setShowDropdown(false);
+                      }}
+                    >
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
+                        style={{
+                          backgroundColor: user.profilePhotoUrl ? "transparent" : getColor(),
+                        }}
+                      >
+                        {user.profilePhotoUrl ? (
+                          <img
+                            src={`http://localhost:8080${user.profilePhotoUrl}`}
+                            alt={user.username}
+                            className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
+                          />
+                        ) : (
+                          getInitials(user.username)
+                        )}
+                      </div>
+                      <span>{user.username}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-4 py-2 text-gray-500">No users found</div>
+                )}
+              </div>
+            )}
           </div>
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700">Opportunity</label>
             <select
               value={editTask.opportunityId || ''}
               onChange={(e) => setEditTask({ ...editTask, opportunityId: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              required
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="">Select an opportunity</option>
               {opportunities.map(opportunity => (
@@ -598,8 +813,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users, 
             <textarea
               value={editTask.description || ''}
               onChange={(e) => setEditTask({ ...editTask, description: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm 
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 h-32"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 h-32"
               placeholder="Describe the task here..."
               required
             />
@@ -608,19 +822,18 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users, 
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full 
-                hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+              className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+              disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full 
-                hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
               disabled={loading}
             >
               {loading && <FaSpinner className="animate-spin mr-2" />}
-              Update
+              Update Task
             </button>
           </div>
         </form>
@@ -632,8 +845,6 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users, 
 // Main Tasks Component
 const Tasks = () => {
   const [tasks, setTasks] = useState({ ToDo: [], InProgress: [], Done: [], Cancelled: [] });
-  const [opportunities, setOpportunities] = useState([]);
-  const [users, setUsers] = useState([]);
   const [newTask, setNewTask] = useState({
     title: '', description: '', deadline: '', priority: 'MEDIUM', typeTask: 'CALL', assignedUserId: '', opportunityId: ''
   });
@@ -645,154 +856,180 @@ const Tasks = () => {
   const [filter, setFilter] = useState('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(null);
+  const [messageType, setMessageType] = useState('success');
   const [highlightedTaskId, setHighlightedTaskId] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const initializeData = async () => {
-      setLoading(true);
-      const user = await fetchCurrentUser();
-      if (!user) {
-        setError('You must be logged in to view tasks');
-        navigate('/login'); // Redirect to login if no user
-        return;
-      }
-      setCurrentUser(user);
-      await Promise.all([fetchTasks(), fetchUsers(), fetchOpportunities()]);
-      setLoading(false);
-    };
-    initializeData();
+  // React Query Hooks
+  const { data: currentUser, error: userError } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: async () => {
+      const response = await api.get('/users/me');
+      return response.data;
+    },
+    onError: () => navigate('/login'),
+  });
 
-    const { highlightTaskId } = location.state || {};
-    if (highlightTaskId) {
-      setHighlightedTaskId(highlightTaskId);
-      const timer = setTimeout(() => setHighlightedTaskId(null), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [location, navigate]);
-
-  const fetchTasks = async () => {
-    try {
+  const { data: tasksData, isLoading, error: tasksError } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: async () => {
       const response = await api.get('/tasks/all');
-      console.log('Tasks response:', response.data);
-      const taskData = response.data.content.reduce((acc, task) => {
+      return response.data.content.reduce((acc, task) => {
         const status = task.statutTask || 'ToDo';
         acc[status] = [...(acc[status] || []), task];
         return acc;
       }, { ToDo: [], InProgress: [], Done: [], Cancelled: [] });
-      setTasks(taskData);
-      setError(null);
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      setError(`Failed to load tasks: ${error.response?.status || 'Unknown error'}`);
-    }
-  };
+    },
+    onError: (err) => {
+      if (err.response?.status === 401) navigate('/login');
+    },
+  });
 
-  const fetchUsers = async () => {
-    try {
+  const { data: users } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
       const response = await api.get('/users/all');
-      setUsers(response.data);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      setError('Failed to load users');
-    }
-  };
+      return response.data;
+    },
+  });
 
-  const fetchOpportunities = async () => {
-    try {
+  const { data: opportunities } = useQuery({
+    queryKey: ['opportunities'],
+    queryFn: async () => {
       const response = await api.get('/opportunities/all');
-      setOpportunities(response.data.content);
-    } catch (error) {
-      console.error('Error fetching opportunities:', error);
-      setError('Failed to load opportunities for tasks');
-    }
-  };
+      return response.data.content;
+    },
+  });
 
-  const handleAddTask = async (e) => {
+  const addTaskMutation = useMutation({
+    mutationFn: async (task) => {
+      const response = await api.post(
+        `/tasks/add?opportunityId=${task.opportunityId}&assignedUserId=${task.assignedUserId}`,
+        task
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(['tasks']);
+      setTasks(prev => ({ ...prev, ToDo: [data, ...prev.ToDo] }));
+      setNewTask({ title: '', description: '', deadline: '', priority: 'MEDIUM', typeTask: 'CALL', assignedUserId: '', opportunityId: '' });
+      setShowAddTaskModal(false);
+      setMessage('Task created successfully!');
+      setMessageType('success');
+    },
+    onError: (err) => {
+      setMessage(`Failed to create task: ${err.response?.data?.message || err.message}`);
+      setMessageType('error');
+    },
+  });
+
+  const updateTaskMutation = useMutation({
+    mutationFn: async (task) => {
+      const response = await api.put(
+        `/tasks/update/${task.id}?assignedUserId=${task.assignedUserId}`,
+        {
+          title: task.title,
+          description: task.description || '',
+          deadline: task.deadline,
+          priority: task.priority,
+          typeTask: task.typeTask,
+          opportunity: { id: task.opportunityId },
+          statutTask: task.statutTask
+        }
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(['tasks']);
+      setShowEditTaskModal(false);
+      setEditTask(null);
+      setMessage('Task updated successfully!');
+      setMessageType('success');
+    },
+    onError: (err) => {
+      setMessage(`Failed to update task: ${err.response?.data?.message || err.message}`);
+      setMessageType('error');
+    },
+  });
+
+  const moveTaskMutation = useMutation({
+    mutationFn: async ({ taskId, newStatus }) => {
+      const response = await api.put(`/tasks/change-status/${taskId}?status=${newStatus}`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(['tasks']);
+      setMessage(`Task moved to ${data.statutTask} successfully!`);
+      setMessageType('success');
+    },
+    onError: (err) => {
+      setMessage(`Failed to move task: ${err.response?.data?.message || err.message}`);
+      setMessageType('error');
+    },
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId) => {
+      await api.delete(`/tasks/delete/${taskId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['tasks']);
+      setShowDeleteModal(false);
+      setTaskToDelete(null);
+      setMessage('Task deleted successfully!');
+      setMessageType('success');
+    },
+    onError: (err) => {
+      setMessage(`Failed to delete task: ${err.response?.data?.message || err.message}`);
+      setMessageType('error');
+    },
+  });
+
+  // Effects
+  useEffect(() => {
+    if (tasksData) {
+      setTasks(tasksData);
+    }
+  }, [tasksData]);
+
+  useEffect(() => {
+    const { highlightTaskId } = location.state || {};
+    if (highlightTaskId) {
+      setHighlightedTaskId(highlightTaskId);
+      const timer = setTimeout(() => setHighlightedTaskId(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [location]);
+
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => setMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
+
+  // Handlers
+  const handleAddTask = (e) => {
     e.preventDefault();
     if (!currentUser) {
-      setError('Cannot add task: User not authenticated');
+      setMessage('Cannot add task: User not authenticated');
+      setMessageType('error');
       navigate('/login');
       return;
     }
-    setLoading(true);
-    try {
-      const response = await api.post(
-        `/tasks/add?opportunityId=${newTask.opportunityId}&assignedUserId=${newTask.assignedUserId}`,
-        newTask
-      );
-      console.log('Task added:', response.data); // Debug response
-      setTasks(prev => ({ ...prev, ToDo: [response.data, ...prev.ToDo] }));
-      setNewTask({ title: '', description: '', deadline: '', priority: 'MEDIUM', typeTask: 'CALL', assignedUserId: '', opportunityId: '' });
-      setShowAddTaskModal(false);
-      setError(null);
-    } catch (error) {
-      console.error('Error adding task:', error.response?.data || error);
-      setError(`Error adding task: ${error.response?.data?.message || error.message}`);
-    } finally {
-      setLoading(false);
-    }
+    addTaskMutation.mutate(newTask);
   };
 
-  const handleEditTask = async (e) => {
+  const handleEditTask = (e) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      const response = await api.put(
-        `/tasks/update/${editTask.id}?assignedUserId=${editTask.assignedUserId}`,
-        {
-          title: editTask.title,
-          description: editTask.description || '',
-          deadline: editTask.deadline,
-          priority: editTask.priority,
-          typeTask: editTask.typeTask,
-          opportunity: { id: editTask.opportunityId },
-          statutTask: editTask.statutTask
-        }
-      );
-      setTasks(prev => {
-        const updatedTask = response.data;
-        const fromColumn = Object.keys(prev).find(key => prev[key].some(t => t.id === updatedTask.id));
-        return {
-          ...prev,
-          [fromColumn]: prev[fromColumn].map(t => t.id === updatedTask.id ? updatedTask : t)
-        };
-      });
-      setShowEditTaskModal(false);
-      setEditTask(null);
-      setError(null);
-    } catch (error) {
-      console.error('Error updating task:', error);
-      setError(`Error updating task: ${error.response?.data?.message || error.message}`);
-    } finally {
-      setLoading(false);
-    }
+    updateTaskMutation.mutate(editTask);
   };
 
-  const handleMoveTask = async (taskId, newStatus) => {
-    setLoading(true);
-    try {
-      const response = await api.put(`/tasks/change-status/${taskId}?status=${newStatus}`);
-      setTasks(prev => {
-        const task = Object.values(prev).flat().find(t => t.id === taskId);
-        const fromColumn = task.statutTask;
-        return {
-          ...prev,
-          [fromColumn]: prev[fromColumn].filter(t => t.id !== taskId),
-          [newStatus]: [...prev[newStatus], response.data]
-        };
-      });
-      setError(null);
-    } catch (error) {
-      console.error('Error moving task:', error);
-      setError('Error moving task');
-    } finally {
-      setLoading(false);
-    }
+  const handleMoveTask = (taskId, newStatus) => {
+    moveTaskMutation.mutate({ taskId, newStatus });
   };
 
   const handleDeleteTask = (taskId, column) => {
@@ -800,23 +1037,9 @@ const Tasks = () => {
     setShowDeleteModal(true);
   };
 
-  const confirmDeleteTask = async () => {
+  const confirmDeleteTask = () => {
     if (!taskToDelete) return;
-    setLoading(true);
-    try {
-      await api.delete(`/tasks/delete/${taskToDelete.id}`);
-      setTasks(prev => ({
-        ...prev,
-        [taskToDelete.column]: prev[taskToDelete.column].filter(t => t.id !== taskToDelete.id)
-      }));
-      setError(null);
-    } catch (error) {
-      setError('Error deleting task');
-    } finally {
-      setLoading(false);
-      setShowDeleteModal(false);
-      setTaskToDelete(null);
-    }
+    deleteTaskMutation.mutate(taskToDelete.id);
   };
 
   const handleEditClick = (task) => {
@@ -847,35 +1070,26 @@ const Tasks = () => {
     return filtered;
   };
 
-  if (loading && !tasks.ToDo.length) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-blue-100">
-        <FaSpinner className="animate-spin text-6xl text-blue-600 mb-4" />
-        <span className="text-xl font-semibold text-gray-700">Loading data...</span>
-      </div>
-    );
-  }
-
+  // Render
   return (
-    <div className="min-h-screen bg-gray-100 p-5 rounded-[10px] border">
-      {/* Error Alert */}
-      {error && (
-        <div className="mb-8 p-6 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-xl shadow-lg 
-          flex items-center justify-between animate-slideIn max-w-3xl mx-auto">
-          <div className="flex items-center">
-            <FaExclamationCircle className="text-2xl mr-3" />
-            <span className="text-lg">{error}</span>
-          </div>
-          <button 
-            onClick={() => setError(null)} 
-            className="p-2 text-red-700 hover:text-red-900 rounded-full hover:bg-red-200 transition-colors duration-200"
-          >
-            <FaTimes className="w-5 h-5" />
-          </button>
-        </div>
-      )}
+    <div className="min-h-screen bg-gray-100 p-5 rounded-[10px] border relative">
+      <style>
+        {`
+          @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+          @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+          @keyframes dropIn { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+          .animate-slideIn { animation: slideIn 0.3s ease-out; }
+          .animate-scaleIn { animation: scaleIn 0.3s ease-out; }
+          .animate-dropIn { animation: dropIn 0.2s ease-out; }
+        `}
+      </style>
 
-      {/* Header */}
+      <MessageDisplay
+        message={message || tasksError?.message || userError?.message}
+        type={message ? messageType : 'error'}
+        onClose={() => setMessage(null)}
+      />
+
       <header className="flex flex-col sm:flex-row justify-between items-center mb-12 max-w-6xl mx-auto gap-4">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-800 flex items-center">
           Tasks
@@ -887,16 +1101,13 @@ const Tasks = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search tasks by title..."
-              className="w-full px-4 py-3 pl-10 bg-white border border-gray-200 rounded-full shadow-sm 
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-3 pl-10 bg-white border border-gray-200 rounded-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             />
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           </div>
           <button
             onClick={() => setShowAddTaskModal(true)}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full 
-              hover:from-blue-700 hover:to-blue-800 flex items-center shadow-lg transition-all duration-300 
-              transform hover:scale-105"
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 flex items-center shadow-lg transition-all duration-300 transform hover:scale-105"
             disabled={!currentUser}
           >
             <FaPlus className="mr-2" /> New Task
@@ -904,14 +1115,12 @@ const Tasks = () => {
           <div className="relative">
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className="px-6 py-3 bg-white text-gray-700 rounded-full flex items-center shadow-lg 
-                hover:bg-gray-50 transition-all duration-300 transform hover:scale-105 border border-gray-200"
+              className="px-6 py-3 bg-white text-gray-700 rounded-full flex items-center shadow-lg hover:bg-gray-50 transition-all duration-300 transform hover:scale-105 border border-gray-200"
             >
               <FaFilter className="mr-2" /> Filter
             </button>
             {isFilterOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 
-                z-20 animate-dropIn">
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-20 animate-dropIn">
                 {['all', 'high', 'medium', 'low'].map(f => (
                   <button
                     key={f}
@@ -928,32 +1137,61 @@ const Tasks = () => {
           </div>
         </div>
       </header>
-
-      {/* Task Columns */}
+      
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 max-w-7xl mx-auto">
-        {Object.entries(tasks).map(([column, tasksList]) => (
-          <TaskColumn
-            key={column}
-            column={column}
-            tasksList={filteredTasks(tasksList)}
-            onMove={handleMoveTask}
-            onEdit={handleEditClick}
-            onDelete={handleDeleteTask}
-            highlightedTaskId={highlightedTaskId}
-          />
-        ))}
+        {Object.entries(tasks).map(([column, tasksList]) => {
+          const filteredList = filteredTasks(tasksList);
+          return (
+            <div
+              key={column}
+              className={`bg-white rounded-2xl shadow-lg p-6 border-t-4 ${getStatusColor(column)} transition-all duration-300 hover:shadow-xl`}
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-gray-800">{column}</h3>
+                <span className="px-3 py-1 bg-gray-100 text-gray-600 text-sm font-medium rounded-full shadow-sm">
+                  {filteredList.length} task{filteredList.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="space-y-4 min-h-[200px]">
+                {isLoading && tasksList.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                    <FaSpinner className="animate-spin text-2xl mb-2" />
+                    <p>Loading tasks...</p>
+                  </div>
+                ) : filteredList.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                    <FaExclamationCircle className="text-2xl mb-2" />
+                    <p>No tasks in this category</p>
+                  </div>
+                ) : (
+                  filteredList.map(task => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onMove={handleMoveTask}
+                      onEdit={handleEditClick}
+                      onDelete={handleDeleteTask}
+                      column={column}
+                      isHighlighted={task.id.toString() === highlightedTaskId}
+                      users={users || []}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Modals */}
       <AddTaskModal
         show={showAddTaskModal}
         onClose={() => setShowAddTaskModal(false)}
         onSubmit={handleAddTask}
         newTask={newTask}
         setNewTask={setNewTask}
-        users={users}
-        opportunities={opportunities}
-        loading={loading}
+        users={users || []}
+        opportunities={opportunities || []}
+        loading={addTaskMutation.isLoading}
       />
       <EditTaskModal
         show={showEditTaskModal}
@@ -961,9 +1199,9 @@ const Tasks = () => {
         onSubmit={handleEditTask}
         editTask={editTask}
         setEditTask={setEditTask}
-        users={users}
-        opportunities={opportunities}
-        loading={loading}
+        users={users || []}
+        opportunities={opportunities || []}
+        loading={updateTaskMutation.isLoading}
       />
       <CustomModal
         isOpen={showDeleteModal}
@@ -972,29 +1210,10 @@ const Tasks = () => {
         title="Delete Task"
         message="Are you sure you want to delete this task? This action cannot be undone."
         actionType="delete"
-        loading={loading}
+        loading={deleteTaskMutation.isLoading}
       />
     </div>
   );
 };
-
-// Custom Styles with Tailwind Animations (unchanged)
-const styles = `
-  @keyframes slideIn {
-    from { transform: translateY(-20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
-  @keyframes scaleIn {
-    from { transform: scale(0.95); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-  }
-  @keyframes dropIn {
-    from { transform: translateY(-10px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
-  .animate-slideIn { animation: slideIn 0.3s ease-out; }
-  .animate-scaleIn { animation: scaleIn 0.3s ease-out; }
-  .animate-dropIn { animation: dropIn 0.2s ease-out; }
-`;
 
 export default Tasks;

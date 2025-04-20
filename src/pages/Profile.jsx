@@ -88,7 +88,7 @@ const Profile = ({ setUser }) => {
   const [selectedAvatar, setSelectedAvatar] = useState(null);
   const [showCropModal, setShowCropModal] = useState(false);
   const [imageToCrop, setImageToCrop] = useState(null);
-  const [crop, setCrop] = useState({ unit: 'px', width: 200, height: 200, aspect: 1 / 1 });
+  const [crop, setCrop] = useState(null);
   const [completedCrop, setCompletedCrop] = useState(null);
   const imgRef = useRef(null);
   const previewCanvasRef = useRef(null);
@@ -162,51 +162,144 @@ const Profile = ({ setUser }) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = () => {
-        setImageToCrop(reader.result);
-        setShowCropModal(true);
-        setIsModalOpen(true);
-        setCrop({ unit: 'px', width: 200, height: 200, aspect: 1 / 1 });
-        setCompletedCrop(null);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const { naturalWidth: width, naturalHeight: height } = img;
+          const targetSize = 200; // Desired output size
+          const minDimension = Math.min(width, height);
+          const initialSize = Math.min(minDimension, targetSize * 2); // Scale up for precision
+          const x = (width - initialSize) / 2;
+          const y = (height - initialSize) / 2;
+          setCrop({
+            unit: 'px',
+            width: initialSize,
+            height: initialSize,
+            x,
+            y,
+            aspect: 1 / 1,
+          });
+          setImageToCrop(event.target.result);
+          setShowCropModal(true);
+          setIsModalOpen(true);
+          setCompletedCrop(null);
+        };
+        img.onerror = () => {
+          setError('Failed to load image. Please try another file.');
+        };
+        img.src = event.target.result;
       };
       reader.readAsDataURL(file);
     }
   };
-
   const getCroppedImg = useCallback(async (image, crop) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    if (!crop || !image) return null;
+  
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
-    const pixelRatio = window.devicePixelRatio;
-    canvas.width = 200 * pixelRatio;
-    canvas.height = 200 * pixelRatio;
-    const cropX = (crop.x || 0) * scaleX;
-    const cropY = (crop.y || 0) * scaleY;
-    const cropWidth = (crop.width || 200) * scaleX;
-    const cropHeight = (crop.height || 200) * scaleY;
-    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    const outputSize = Math.floor(crop.width * scaleX);
+    const pixelRatio = window.devicePixelRatio || 1;
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = outputSize * pixelRatio;
+    canvas.height = outputSize * pixelRatio;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(pixelRatio, pixelRatio);
+    ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(image, cropX, cropY, cropWidth, cropHeight, 0, 0, 200 * pixelRatio, 200 * pixelRatio);
+  
+    ctx.beginPath();
+    ctx.arc(outputSize / 2, outputSize / 2, outputSize / 2, 0, Math.PI * 2, true);
+    ctx.closePath();
+    ctx.clip();
+  
+    ctx.drawImage(
+      image,
+      crop.x * scaleX,
+      crop.y * scaleY,
+      crop.width * scaleX,
+      crop.height * scaleY,
+      0,
+      0,
+      outputSize,
+      outputSize
+    );
+  
     return new Promise((resolve) => {
       canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95);
     });
   }, []);
-
-  useEffect(() => {
-    if (completedCrop && imgRef.current && previewCanvasRef.current) {
-      const canvas = previewCanvasRef.current;
-      const ctx = canvas.getContext('2d');
-      const image = imgRef.current;
-      const scaleX = image.naturalWidth / image.width;
-      const scaleY = image.naturalHeight / image.height;
-      canvas.width = 200;
-      canvas.height = 200;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(image, (completedCrop.x || 0) * scaleX, (completedCrop.y || 0) * scaleY, (completedCrop.width || 200) * scaleX, (completedCrop.height || 200) * scaleY, 0, 0, 200, 200);
-    }
+  
+  
+  const updatePreview = useCallback(() => {
+    if (!completedCrop || !imgRef.current || !previewCanvasRef.current) return;
+  
+    const canvas = previewCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const image = imgRef.current;
+  
+    // Get real image dimensions
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+  
+    // Define preview size
+    const previewSize = 200; // Ensure this matches the preview div size
+    const pixelRatio = window.devicePixelRatio || 1;
+  
+    // Set canvas resolution for high-quality rendering
+    canvas.width = previewSize * pixelRatio;
+    canvas.height = previewSize * pixelRatio;
+    canvas.style.width = `${previewSize}px`;
+    canvas.style.height = `${previewSize}px`;
+  
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0); // Ensure sharp rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+  
+    // Ensure crop data is valid
+    if (!completedCrop.width || !completedCrop.height) return;
+  
+    // Get crop position & size
+    const cropX = completedCrop.x * scaleX;
+    const cropY = completedCrop.y * scaleY;
+    const cropWidth = completedCrop.width * scaleX;
+    const cropHeight = completedCrop.height * scaleY;
+  
+    // Calculate scale to fill the preview
+    const scaleFactor = previewSize / Math.max(cropWidth, cropHeight);
+  
+    // Center the cropped image within the preview area
+    const offsetX = (previewSize - cropWidth * scaleFactor) / 2;
+    const offsetY = (previewSize - cropHeight * scaleFactor) / 2;
+  
+    // Clear previous content
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+    // Clip to a circle shape
+    ctx.beginPath();
+    ctx.arc(previewSize / 2, previewSize / 2, previewSize / 2, 0, Math.PI * 2, true);
+    ctx.closePath();
+    ctx.clip();
+  
+    // Draw cropped image with scaling
+    ctx.drawImage(
+      image,
+      cropX,
+      cropY,
+      cropWidth,
+      cropHeight,
+      offsetX,
+      offsetY,
+      cropWidth * scaleFactor,
+      cropHeight * scaleFactor
+    );
   }, [completedCrop]);
+  
+  // Run updatePreview whenever crop changes
+  useEffect(() => {
+    updatePreview();
+  }, [completedCrop, updatePreview]);
+  
 
   const handleUploadPhoto = async () => {
     if (!completedCrop || !imgRef.current) return;
@@ -322,22 +415,8 @@ const Profile = ({ setUser }) => {
     setMessage('');
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token found. Please log in again.');
-      }
-  
-      // Log the OTP for debugging
-      console.log('Disabling 2FA with OTP:', disableOtp);
-  
-      // Call the new disable endpoint
-      const response = await api.post(
-        '/auth/2fa/disable',
-        { code: disableOtp },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      console.log('Disable 2FA response:', response.data);
-  
-      // Update local state on success
+      if (!token) throw new Error('No authentication token found');
+      await api.post('/auth/2fa/disable', { code: disableOtp }, { headers: { Authorization: `Bearer ${token}` } });
       setProfile((prev) => ({ ...prev, twoFactorEnabled: false }));
       setUser((prev) => ({ ...prev, twoFactorEnabled: false }));
       setMessage('2FA disabled successfully');
@@ -345,19 +424,7 @@ const Profile = ({ setUser }) => {
       setIsDisabling2FA(false);
       clearMessage();
     } catch (err) {
-      console.error('Error disabling 2FA:', err.response?.data || err.message);
-  
-      // Handle specific error cases
-      if (err.response?.status === 401) {
-        setError('Session expired. Please log in again.');
-        navigate('/login');
-      } else if (err.response?.status === 400) {
-        setError(err.response.data.message || 'Invalid 2FA code. Please try again.');
-      } else if (err.response?.status === 500) {
-        setError('Server error. Please try again later.');
-      } else {
-        setError(err.response?.data?.message || err.message || 'Failed to disable 2FA');
-      }
+      setError(err.response?.data?.message || 'Failed to disable 2FA');
       clearMessage();
     }
   };
@@ -417,6 +484,19 @@ const Profile = ({ setUser }) => {
     };
   }, [isModalOpen]);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && showCropModal) {
+        setShowCropModal(false);
+        setImageToCrop(null);
+        setCompletedCrop(null);
+        setIsModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showCropModal]);
+
   return (
     <div className="min-h-screen bg-gray-50 p-8 rounded-[10px] border">
       <div className="max-w-6xl mx-auto">
@@ -427,168 +507,165 @@ const Profile = ({ setUser }) => {
           <TabButton id="twoFactor" icon={<FaQrcode className="text-lg" />} title="2FA" />
         </div>
         <div className="bg-white rounded-b-xl rounded-r-xl rounded-l-xl shadow-lg p-8 border border-gray-200">
-        {activeTab === 'profile' && (
-  <div className="bg-gradient-to-br from-white to-gray-50 p-6 rounded-xl shadow-lg">
-    <div className="flex items-center justify-between mb-8">
-      <h2 className="text-2xl font-extrabold text-gray-900 flex items-center gap-3">
-        <FaUser className="text-indigo-600 text-xl" />
-        <span>Profile </span>
-      </h2>
+          {activeTab === 'profile' && (
+            <div className="bg-gradient-to-br from-white to-gray-50 p-6 rounded-xl shadow-lg">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl font-extrabold text-gray-900 flex items-center gap-3">
+                  <FaUser className="text-indigo-600 text-xl" />
+                  <span>Profile</span>
+                </h2>
+              </div>
 
-    </div>
-
-    {error && (
-      <div className="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-r-lg animate-fade-in">
-        {error}
-      </div>
-    )}
-    {message && (
-      <div className="mb-6 bg-green-50 border-l-4 border-green-500 text-green-700 p-4 rounded-r-lg animate-fade-in">
-        {message}
-      </div>
-    )}
-
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Profile Photo Section */}
-      <div className="lg:col-span-1">
-        <div className="bg-white p-5 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 h-[360px]">
-          <label className="block text-md font-semibold text-gray-800 mb-3">Profile Photo</label>
-          <div className="flex flex-col items-center space-y-4">
-            <div className="w-44 h-44 rounded-full overflow-hidden ring-4 ring-indigo-100 flex items-center justify-center bg-gray-100 transition-transform hover:scale-105 duration-300">
-              {profile.profilePhotoUrl ? (
-                <img src={profile.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                <span
-                  className="w-full h-full flex items-center justify-center text-3xl font-bold text-white"
-                  style={{ background: 'linear-gradient(135deg, #4F46E5, #7C3AED)' }}
-                >
-                  {getInitials(profile.username)}
-                </span>
+              {error && (
+                <div className="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-r-lg animate-fade-in">
+                  {error}
+                </div>
               )}
-            </div>
-            <br />
-            <label
-              htmlFor="photo-upload"
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md"
-            >
-              <FaCamera />
-              <span>Change Photo</span>
-            </label>
-            <input
-              type="file"
-              id="photo-upload"
-              accept="image/*"
-              onChange={handlePhotoChange}
-              className="hidden"
-              aria-label="Upload profile photo"
-            />
-          </div>
-        </div>
-      </div>
+              {message && (
+                <div className="mb-6 bg-green-50 border-l-4 border-green-500 text-green-700 p-4 rounded-r-lg animate-fade-in">
+                  {message}
+                </div>
+              )}
 
-      {/* Profile Form Section */}
-      <div className="lg:col-span-2">
-        <form onSubmit={handleUpdateProfile} className="bg-white p-5 rounded-lg shadow-md space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="relative group">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-              <div className="flex items-center border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-indigo-500 transition-all duration-200">
-                <FaUser className="ml-3 text-gray-400 group-hover:text-indigo-500" />
-                <input
-                  type="text"
-                  value={profile.username}
-                  onChange={(e) => setProfile({ ...profile, username: e.target.value })}
-                  className="w-full px-3 py-2 border-0 focus:ring-0"
-                  required
-                  aria-label="Username"
-                />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-1">
+                  <div className="bg-white p-5 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 h-[360px]">
+                    <label className="block text-md font-semibold text-gray-800 mb-3">Profile Photo</label>
+                    <div className="flex flex-col items-center space-y-4">
+                      <div className="w-44 h-44 rounded-full overflow-hidden ring-4 ring-indigo-100 flex items-center justify-center bg-gray-100 transition-transform hover:scale-105 duration-300">
+                        {profile.profilePhotoUrl ? (
+                          <img src={profile.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                          <span
+                            className="w-full h-full flex items-center justify-center text-3xl font-bold text-white"
+                            style={{ background: 'linear-gradient(135deg, #4F46E5, #7C3AED)' }}
+                          >
+                            {getInitials(profile.username)}
+                          </span>
+                        )}
+                      </div>
+                      <br />
+                      <label
+                        htmlFor="photo-upload"
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md"
+                      >
+                        <FaCamera />
+                        <span>Change Photo</span>
+                      </label>
+                      <input
+                        type="file"
+                        id="photo-upload"
+                        accept="image/*"
+                        onChange={handlePhotoChange}
+                        className="hidden"
+                        aria-label="Upload profile photo"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-2">
+                  <form onSubmit={handleUpdateProfile} className="bg-white p-5 rounded-lg shadow-md space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="relative group">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                        <div className="flex items-center border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-indigo-500 transition-all duration-200">
+                          <FaUser className="ml-3 text-gray-400 group-hover:text-indigo-500" />
+                          <input
+                            type="text"
+                            value={profile.username}
+                            onChange={(e) => setProfile({ ...profile, username: e.target.value })}
+                            className="w-full px-3 py-2 border-0 focus:ring-0"
+                            required
+                            aria-label="Username"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="relative">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
+                          <FaEnvelope className="ml-3 text-gray-400" />
+                          <input
+                            type="email"
+                            value={profile.email}
+                            disabled
+                            className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
+                            aria-label="Email"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="relative group">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Birthdate</label>
+                        <div className="flex items-center border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-indigo-500 transition-all duration-200">
+                          <FaBirthdayCake className="ml-3 text-gray-400 group-hover:text-indigo-500" />
+                          <input
+                            type="date"
+                            value={profile.birthdate}
+                            onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
+                            className="w-full px-3 py-2 border-0 focus:ring-0"
+                            aria-label="Birthdate"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="relative">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                        <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
+                          <FaUserTag className="ml-3 text-gray-400" />
+                          <input
+                            type="text"
+                            value={profile.role}
+                            disabled
+                            className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
+                            aria-label="Role"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="relative">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
+                          <FaUserCheck className="ml-3 text-gray-400" />
+                          <input
+                            type="text"
+                            value={profile.status}
+                            disabled
+                            className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
+                            aria-label="Status"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="relative">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Verification</label>
+                        <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
+                          <FaCheckCircle className={`ml-3 ${profile.verified ? 'text-green-500' : 'text-gray-400'}`} />
+                          <input
+                            type="text"
+                            value={profile.verified ? 'Verified' : 'Not Verified'}
+                            disabled
+                            className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
+                            aria-label="Verification Status"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-gradient-to-r from-indigo-700 to-indigo-700 text-white py-3 rounded-lg hover:from-indigo-700 hover:to-indigo-800 transition-all duration-300 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                      aria-label="Update profile"
+                    >
+                      <FaKey />
+                      <span>Save Changes</span>
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
-
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
-                <FaEnvelope className="ml-3 text-gray-400" />
-                <input
-                  type="email"
-                  value={profile.email}
-                  disabled
-                  className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
-                  aria-label="Email"
-                />
-              </div>
-            </div>
-
-            <div className="relative group">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Birthdate</label>
-              <div className="flex items-center border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-indigo-500 transition-all duration-200">
-                <FaBirthdayCake className="ml-3 text-gray-400 group-hover:text-indigo-500" />
-                <input
-                  type="date"
-                  value={profile.birthdate}
-                  onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
-                  className="w-full px-3 py-2 border-0 focus:ring-0"
-                  aria-label="Birthdate"
-                />
-              </div>
-            </div>
-
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-              <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
-                <FaUserTag className="ml-3 text-gray-400" />
-                <input
-                  type="text"
-                  value={profile.role}
-                  disabled
-                  className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
-                  aria-label="Role"
-                />
-              </div>
-            </div>
-
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
-                <FaUserCheck className="ml-3 text-gray-400" />
-                <input
-                  type="text"
-                  value={profile.status}
-                  disabled
-                  className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
-                  aria-label="Status"
-                />
-              </div>
-            </div>
-
-            <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Verification</label>
-              <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
-                <FaCheckCircle className={`ml-3 ${profile.verified ? 'text-green-500' : 'text-gray-400'}`} />
-                <input
-                  type="text"
-                  value={profile.verified ? 'Verified' : 'Not Verified'}
-                  disabled
-                  className="w-full px-3 py-2 border-0 bg-transparent cursor-not-allowed"
-                  aria-label="Verification Status"
-                />
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-gradient-to-r from-indigo-700 to-indigo-700 text-white py-3 rounded-lg hover:from-indigo-700 hover:to-indigo-800 transition-all duration-300 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-            aria-label="Update profile"
-          >
-            <FaKey />
-            <span>Save Changes</span>
-          </button>
-        </form>
-      </div>
-    </div>
-  </div>
-)}
+          )}
           {activeTab === 'avatars' && (
             <div>
               <h2 className="text-3xl font-bold text-gray-800 mb-6 flex items-center space-x-3">
@@ -770,7 +847,7 @@ const Profile = ({ setUser }) => {
                   <div className="space-y-6 relative">
                     <div className="flex justify-center mb-4">
                       <div className="p-6 bg-white rounded-xl shadow-lg border-2 border-[#0056B3]">
-                        <QRCodeSVG value={qrCodeUrl} size={160} bgColor="#FFFFFF" fgColor="#0056B3" level="H" />
+                        <QRCodeSVG value={qrCodeUrl} size={150} bgColor="#FFFFFF" fgColor="#0056B3" level="H" />
                       </div>
                     </div>
                     <p className="text-gray-600 text-lg font-medium px-4">
@@ -902,72 +979,97 @@ const Profile = ({ setUser }) => {
               </div>
             </div>
           )}
-          {showCropModal && (
-            <div
-              className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-[300px] max-w-md w-full bg-black bg-opacity-50 backdrop-blur-md flex items-center justify-center z-50"
-              aria-labelledby="crop-modal"
+{showCropModal && (
+  <div
+    className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50"
+    aria-labelledby="crop-modal"
+  >
+    <div className="bg-white rounded-xl p-8 w-full max-w-5xl shadow-2xl flex flex-row gap-8">
+      {/* Crop Area */}
+      <div className="flex-1 flex flex-col">
+        <h3 id="crop-modal" className="text-2xl font-bold text-gray-800 mb-6 flex items-center space-x-2">
+          <FaCamera className="text-indigo-600" />
+          <span>Edit Profile Photo</span>
+        </h3>
+        <div className="relative flex-1">
+          <ReactCrop
+            crop={crop}
+            onChange={(_, percentCrop) => setCrop(percentCrop)}
+            onComplete={(c) => setCompletedCrop(c)}
+            aspect={1 / 1}
+            circularCrop
+            ruleOfThirds
+            className="rounded-lg overflow-hidden shadow-md"
+          >
+            <img
+              ref={imgRef}
+              src={imageToCrop}
+              alt="Image to crop"
+              style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }}
+              onLoad={() => {
+                console.log('Image loaded, triggering updatePreview');
+                updatePreview();
+              }}
+              onError={() => console.error('Image failed to load')}
+            />
+          </ReactCrop>
+        </div>
+        <p className="text-sm text-gray-600 italic mt-4">Adjust the crop area for a perfect fit</p>
+      </div>
+
+      {/* Preview and Controls */}
+      <div className="flex-1 flex flex-col items-center justify-between">
+        <div className="flex flex-col items-center space-y-4">
+          <h4 className="text-lg font-semibold text-gray-700">Preview</h4>
+          <div className="w-[200px] h-[200px] rounded-full overflow-hidden bg-gray-100 shadow-inner ring-4 ring-indigo-100">
+            <canvas
+              ref={previewCanvasRef}
+              className="w-full h-full"
+              style={{ borderRadius: '50%' }}
+            />
+          </div>
+        </div>
+        <div className="w-full mt-6 space-y-4">
+          <div className="text-sm text-gray-700">
+            <h5 className="font-semibold text-gray-800">Tips & Rules:</h5>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Use a clear, high-resolution photo (at least 400x400px).</li>
+              <li>Center your face or subject within the circle.</li>
+              <li>Ensure good lighting for sharp results.</li>
+              <li>Avoid resizing small images to prevent pixelation.</li>
+            </ul>
+          </div>
+          <div className="flex justify-between gap-4">
+            <button
+              onClick={() => {
+                setShowCropModal(false);
+                setImageToCrop(null);
+                setCompletedCrop(null);
+                setIsModalOpen(false);
+              }}
+              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-all duration-200 shadow-md"
+              aria-label="Cancel cropping"
             >
-              <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-2xl overflow-y-auto">
-                <h3 id="crop-modal" className="text-2xl font-bold text-gray-800 mb-4">
-                  Edit Profile Photo
-                </h3>
-                <div className="mb-4 flex justify-center">
-                  <ReactCrop
-                    crop={crop}
-                    onChange={(_, percentCrop) => setCrop(percentCrop)}
-                    onComplete={(c) => setCompletedCrop(c)}
-                    aspect={1 / 1}
-                    circularCrop
-                    className="max-w-full"
-                  >
-                    <img
-                      ref={imgRef}
-                      src={imageToCrop}
-                      alt="Image to crop"
-                      style={{ maxHeight: '520px', objectFit: 'contain' }}
-                      onLoad={(e) => {
-                        const { width, height } = e.currentTarget;
-                        const maxCropSize = 200;
-                        const cropSize = Math.min(width, height, maxCropSize);
-                        const centerX = (width - cropSize) / 2;
-                        const centerY = (height - cropSize) / 2;
-                        setCrop({
-                          unit: 'px',
-                          width: cropSize,
-                          height: cropSize,
-                          x: centerX,
-                          y: centerY,
-                          aspect: 1 / 1,
-                        });
-                      }}
-                    />
-                  </ReactCrop>
-                </div>
-                <div className="flex justify-between">
-                  <button
-                    onClick={() => {
-                      setShowCropModal(false);
-                      setImageToCrop(null);
-                      setCompletedCrop(null);
-                      setIsModalOpen(false);
-                    }}
-                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 shadow-md"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleUploadPhoto}
-                    disabled={!completedCrop}
-                    className={`px-4 py-2 bg-[#0056B3] text-white rounded-lg hover:bg-[#004499] shadow-md ${
-                      !completedCrop ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    Upload Cropped Photo
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+              Cancel
+            </button>
+            <button
+              onClick={handleUploadPhoto}
+              disabled={!completedCrop}
+              className={`flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-200 shadow-md ${
+                !completedCrop ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              aria-label="Upload cropped photo"
+            >
+              Upload
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+
         </div>
       </div>
     </div>

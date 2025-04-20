@@ -21,7 +21,9 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Skip redirect for 2FA-related endpoints
+    const is2FARelated = error.config.url.includes('/auth/verify-2fa') || error.config.url.includes('/api/users/suspend-self');
+    if (error.response?.status === 401 && !is2FARelated) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }

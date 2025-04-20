@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FaPlus, FaGlobe, FaSearch, FaFilter, FaTrash, FaEdit, FaDownload,
   FaSpinner, FaUser, FaEnvelope, FaPhone, FaBuilding, FaStickyNote,
@@ -9,6 +9,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import Select from 'react-select';
 import { Stomp } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Axios config
 axios.defaults.baseURL = 'http://localhost:8080';
@@ -20,7 +21,6 @@ const getInitials = (name = '') => {
   const names = name.split(' ');
   return names.map((n) => n.charAt(0)).join('').toUpperCase().slice(0, 2);
 };
-
 
 const getRandomColor = () => '#b0b0b0';
 
@@ -176,17 +176,78 @@ const customStyles = `
   .form-select-container {
     position: relative;
   }
-      .no-scroll {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow-y: auto; /* Form scrolls, not background */
-}
-body:has(.no-scroll) {
-  overflow: hidden; /* Locks body scroll */
-}
+  .form-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+  }
+  .form-overlay > div {
+    margin: auto;
+  }
+  .no-scroll {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+  }
+  body:has(.no-scroll) {
+    overflow: hidden;
+  }
+  .checkbox-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  .checkbox-wrapper input[type="checkbox"] {
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    cursor: pointer;
+  }
+  .checkbox-wrapper span {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1.25rem;
+    height: 1.25rem;
+    background-color: #ffffff;
+    border: 2px solid #d1d5db;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .checkbox-wrapper input[type="checkbox"]:checked + span {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+  }
+  .checkbox-wrapper input[type="checkbox"]:hover:not(:disabled) + span {
+    border-color: #93c5fd;
+  }
+  .checkbox-wrapper input[type="checkbox"]:disabled + span {
+    background-color: #e5e7eb;
+    border-color: #d1d5db;
+    cursor: not-allowed;
+  }
+  .checkbox-wrapper span svg {
+    width: 0.875rem;
+    height: 0.875rem;
+    color: #ffffff;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .checkbox-wrapper input[type="checkbox"]:checked + span svg {
+    opacity: 1;
+  }
 `;
 
 // Main Component
@@ -194,10 +255,10 @@ const Companies = () => {
   // State
   const [companies, setCompanies] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false); // Reintroduced for manual operations
+  const [error, setError] = useState(null); // Reintroduced for custom errors
   const [message, setMessage] = useState(null);
-  const [showForm, setShowForm] = useState(false); // Form closed by default
+  const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     name: '', email: '', phone: '', status: '', owner: null, address: '', website: '', industry: '', notes: '', photo: null, photoUrl: ''
   });
@@ -229,118 +290,181 @@ const Companies = () => {
   const location = useLocation();
   const stompClientRef = useRef(null);
 
-  // Fetch Functions
-  const getBaseParams = useCallback(() => ({
+  // React Query Setup
+  const queryClient = useQueryClient();
+
+  const getBaseParams = () => ({
     page: currentPage,
     size: pageSize,
     sort: `${sortColumn},${sortDirection}`,
-  }), [currentPage, pageSize, sortColumn, sortDirection]);
+  });
 
-  const fetchAllCompanies = useCallback(async (token, params) => {
-    const response = await axios.get('/api/companies/all', {
+  const fetchCompaniesQuery = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('No token found');
+
+    const baseParams = getBaseParams();
+    let url = '/api/companies/all';
+    let params = baseParams;
+
+    switch (activeTab) {
+      case 'all':
+        url = '/api/companies/all';
+        break;
+      case 'search':
+        url = searchQuery.trim() ? '/api/companies/search' : '/api/companies/all';
+        params = searchQuery.trim() ? { ...baseParams, query: searchQuery.trim() } : baseParams;
+        break;
+      case 'filter':
+        url = '/api/companies/filter';
+        params = { ...baseParams };
+        if (filters.status === 'Active' || filters.status === 'Inactive') params.status = filters.status;
+        if (filters.owner === 'unassigned') params.unassignedOnly = true;
+        else if (filters.owner !== 'all' && filters.owner?.id) params.ownerId = filters.owner.id;
+        break;
+      default:
+        throw new Error('Invalid activeTab value');
+    }
+
+    const response = await axios.get(url, {
       headers: { Authorization: `Bearer ${token}` },
-      params
+      params,
     });
     return response.data;
-  }, []);
+  };
 
-  const fetchSearchCompanies = useCallback(async (token, params) => {
-    const response = await axios.get('/api/companies/search', {
-      headers: { Authorization: `Bearer ${token}` },
-      params
-    });
-    return response.data;
-  }, []);
+  const {
+    data: companiesData,
+    isLoading,
+    error: queryError,
+  } = useQuery({
+    queryKey: ['companies', activeTab, searchQuery, filters, currentPage, sortColumn, sortDirection],
+    queryFn: fetchCompaniesQuery,
+    keepPreviousData: true,
+    onError: (err) => {
+      if (err.response?.status === 401) navigate('/login');
+    },
+  });
 
-  const fetchFilteredCompanies = useCallback(async (token, params) => {
-    const response = await axios.get('/api/companies/filter', {
-      headers: { Authorization: `Bearer ${token}` },
-      params
-    });
-    return response.data;
-  }, []);
-
-  const fetchCompanies = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data: usersData } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token found');
-
-      const baseParams = getBaseParams();
-      let data;
-
-      switch (activeTab) {
-        case 'all':
-          data = await fetchAllCompanies(token, baseParams);
-          break;
-        case 'search':
-          if (!searchQuery.trim()) {
-            data = await fetchAllCompanies(token, baseParams);
-          } else {
-            const searchParams = { ...baseParams, query: searchQuery.trim() };
-            data = await fetchSearchCompanies(token, searchParams);
-          }
-          break;
-        case 'filter':
-          const filterParams = { ...baseParams };
-          if (filters.status === 'Active' || filters.status === 'Inactive') filterParams.status = filters.status;
-          if (filters.owner === 'unassigned') filterParams.unassignedOnly = true;
-          else if (filters.owner !== 'all' && filters.owner?.id) filterParams.ownerId = filters.owner.id;
-          data = await fetchFilteredCompanies(token, filterParams);
-          break;
-        default:
-          throw new Error('Invalid activeTab value');
-      }
-
-      setCompanies(data.content || []);
-      setTotalPages(data.totalPages || 1);
-      setTotalCompanies(data.totalElements || data.content.length || 0);
-      setSelectedCompanies(new Set());
-      setError(null);
-    } catch (err) {
-      setError(err.response?.status === 401 ? 'Unauthorized. Please log in.' : 'Failed to fetch companies: ' + (err.response?.data?.error || err.message));
-      if (err.response?.status === 401) navigate('/login');
-    } finally {
-      setLoading(false);
-    }
-  }, [activeTab, searchQuery, filters, getBaseParams, navigate, fetchAllCompanies, fetchSearchCompanies, fetchFilteredCompanies]);
-
-  const fetchUsers = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('token');
       const response = await axios.get('/api/users/all', { headers: { Authorization: `Bearer ${token}` } });
-      setUsers(response.data || []);
-    } catch (err) {
-      setError('Failed to fetch users');
-    }
-  }, []);
+      return response.data || [];
+    },
+  });
 
-  // WebSocket Setup
-  useEffect(() => {
-    const socket = new SockJS('http://localhost:8080/ws');
-    stompClientRef.current = Stomp.over(socket);
-    stompClientRef.current.connect({}, () => {
-      stompClientRef.current.subscribe(`/topic/import-progress/${sessionId}`, (message) => {
-        const progressData = JSON.parse(message.body);
-        setImportProgress(progressData.progress);
-      });
-    });
+  const saveCompanyMutation = useMutation({
+    mutationFn: async ({ formData, editingCompanyId }) => {
+      const token = localStorage.getItem('token');
+      let photoUrl = formData.photoUrl;
 
-    return () => {
-      if (stompClientRef.current) {
-        stompClientRef.current.disconnect();
+      if (formData.photo) {
+        const photoData = new FormData();
+        photoData.append('file', formData.photo);
+        photoData.append('companyId', editingCompanyId || 0);
+        const uploadRes = await axios.post(`/api/companies/${editingCompanyId || 0}/uploadPhoto`, photoData, {
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+        });
+        photoUrl = uploadRes.data.photoUrl;
       }
-    };
-  }, [sessionId]);
+
+      const companyData = { ...formData, photoUrl, owner: formData.owner ? { id: formData.owner.id } : null };
+      return editingCompanyId
+        ? await axios.put(`/api/companies/update/${editingCompanyId}`, companyData, { headers: { Authorization: `Bearer ${token}` } })
+        : await axios.post('/api/companies/add', companyData, { headers: { Authorization: `Bearer ${token}` } });
+    },
+    onSuccess: (response) => {
+      queryClient.invalidateQueries(['companies']);
+      setMessage(editingCompanyId ? 'Company updated!' : 'Company added!');
+      const params = new URLSearchParams(location.search);
+      const fromContacts = params.get('fromContacts') === 'true';
+      if (!editingCompanyId && fromContacts) {
+        navigate(`/contacts?newCompanyId=${response.data.id}`);
+      } else {
+        resetForm();
+      }
+    },
+    onError: (err) => setError(err.response?.data?.error || 'Failed to save company'),
+  });
+
+  const deleteCompanyMutation = useMutation({
+    mutationFn: async (id) => {
+      const token = localStorage.getItem('token');
+      await axios.delete(`/api/companies/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['companies']);
+      setMessage('Company deleted!');
+      setSelectedCompany(null);
+    },
+    onError: () => setError('Failed to delete company'),
+  });
+
+  const deleteSelectedMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('token');
+      await axios.delete('/api/companies/delete/bulk', {
+        headers: { Authorization: `Bearer ${token}` },
+        data: [...selectedCompanies],
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['companies']);
+      setMessage(`${selectedCompanies.size} company(s) deleted!`);
+      setSelectedCompanies(new Set());
+      setSelectedCompany(null);
+    },
+    onError: (err) => setError('Failed to delete selected companies: ' + err.message),
+  });
+
+  const importCompaniesMutation = useMutation({
+    mutationFn: async () => {
+      if (!importFile) throw new Error('No file selected for import.');
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', importFile);
+      formData.append('type', importType);
+      formData.append('preview', 'false');
+      formData.append('updateExisting', updateExisting.toString());
+      formData.append('columns', selectedColumns.join(','));
+      formData.append('sessionId', sessionId);
+
+      const response = await axios.post('/api/companies/import', formData, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(['companies']);
+      setMessage(data.message);
+      setShowImportModal(false);
+      setImportFile(null);
+      setPreviewData(null);
+      setSelectedColumns([]);
+      setImportProgress(0);
+    },
+    onError: (err) => setError('Failed to import companies: ' + (err.response?.data?.error || err.message)),
+  });
 
   // Effect Hooks
   useEffect(() => {
-    fetchCompanies();
-  }, [fetchCompanies]);
+    if (companiesData) {
+      setCompanies(companiesData.content || []);
+      setTotalPages(companiesData.totalPages || 1);
+      setTotalCompanies(companiesData.totalElements || companiesData.content.length || 0);
+      setSelectedCompanies(new Set());
+      setError(null);
+    }
+  }, [companiesData]);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    if (usersData) {
+      setUsers(usersData);
+    }
+  }, [usersData]);
 
   useEffect(() => {
     if (message || error) {
@@ -356,7 +480,7 @@ const Companies = () => {
     const params = new URLSearchParams(location.search);
     const fromContacts = params.get('fromContacts');
     if (fromContacts === 'true') {
-      setShowForm(true); // Open form when coming from Contacts
+      setShowForm(true);
     }
   }, [location.search]);
 
@@ -381,9 +505,28 @@ const Companies = () => {
         id: pendingCompanyData.id || null
       }));
       setShowForm(true);
-      localStorage.removeItem('pendingCompanyData'); // Clean up
+      localStorage.removeItem('pendingCompanyData');
     }
   }, [location.search]);
+
+  // WebSocket Setup
+  useEffect(() => {
+    const socket = new SockJS('http://localhost:8080/ws');
+    stompClientRef.current = Stomp.over(socket);
+    stompClientRef.current.connect({}, () => {
+      stompClientRef.current.subscribe(`/topic/import-progress/${sessionId}`, (message) => {
+        const progressData = JSON.parse(message.body);
+        setImportProgress(progressData.progress);
+      });
+    });
+
+    return () => {
+      if (stompClientRef.current) {
+        stompClientRef.current.disconnect();
+      }
+    };
+  }, [sessionId]);
+
   // Handlers
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
@@ -403,46 +546,9 @@ const Companies = () => {
     setCurrentPage(0);
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      let photoUrl = formData.photoUrl;
-  
-      if (formData.photo) {
-        const photoData = new FormData();
-        photoData.append('file', formData.photo);
-        photoData.append('companyId', editingCompanyId || 0);
-        const uploadRes = await axios.post(`/api/companies/${editingCompanyId || 0}/uploadPhoto`, photoData, {
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
-        });
-        photoUrl = uploadRes.data.photoUrl;
-      }
-  
-      const companyData = { ...formData, photoUrl, owner: formData.owner ? { id: formData.owner.id } : null };
-      const response = editingCompanyId
-        ? await axios.put(`/api/companies/update/${editingCompanyId}`, companyData, { headers: { Authorization: `Bearer ${token}` } })
-        : await axios.post('/api/companies/add', companyData, { headers: { Authorization: `Bearer ${token}` } });
-  
-      setCompanies((prev) => editingCompanyId ? prev.map(c => c.id === editingCompanyId ? response.data : c) : [response.data, ...prev]);
-      setMessage(editingCompanyId ? 'Company updated!' : 'Company added!');
-  
-      // Check if we came from the contacts page
-      const params = new URLSearchParams(location.search);
-      const fromContacts = params.get('fromContacts') === 'true';
-  
-      if (!editingCompanyId && fromContacts) {
-        navigate(`/contacts?newCompanyId=${response.data.id}`);
-      } else {
-        resetForm();
-        fetchCompanies();
-      }
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save company');
-    } finally {
-      setLoading(false);
-    }
+    saveCompanyMutation.mutate({ formData, editingCompanyId });
   };
 
   const handleCancel = () => {
@@ -457,24 +563,27 @@ const Companies = () => {
   const handleDelete = (id) => {
     setModalConfig({
       isOpen: true,
-      onConfirm: async () => {
-        setLoading(true);
-        try {
-          const token = localStorage.getItem('token');
-          await axios.delete(`/api/companies/delete/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-          setCompanies((prev) => prev.filter(c => c.id !== id));
-          setMessage('Company deleted!');
-          setSelectedCompany(null);
-          fetchCompanies();
-        } catch (err) {
-          setError('Failed to delete company');
-        } finally {
-          setLoading(false);
-          setModalConfig({ ...modalConfig, isOpen: false });
-        }
+      onConfirm: () => {
+        deleteCompanyMutation.mutate(id);
+        setModalConfig({ ...modalConfig, isOpen: false });
       },
       title: 'Delete Company',
       message: 'Are you sure you want to delete this company? This action cannot be undone.',
+      actionType: 'delete',
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    if (!selectedCompanies.size) return;
+
+    setModalConfig({
+      isOpen: true,
+      onConfirm: () => {
+        deleteSelectedMutation.mutate();
+        setModalConfig({ ...modalConfig, isOpen: false });
+      },
+      title: 'Delete Selected Companies',
+      message: `Are you sure you want to delete ${selectedCompanies.size} selected company(s)? This action cannot be undone.`,
       actionType: 'delete',
     });
   };
@@ -506,38 +615,8 @@ const Companies = () => {
     }
   };
 
-  const handleImportConfirm = async () => {
-    if (!importFile) {
-      setError('No file selected for import.');
-      return;
-    }
-    setLoading(true);
-    setImportProgress(0);
-    try {
-      const token = localStorage.getItem('token');
-      const formData = new FormData();
-      formData.append('file', importFile);
-      formData.append('type', importType);
-      formData.append('preview', 'false');
-      formData.append('updateExisting', updateExisting.toString());
-      formData.append('columns', selectedColumns.join(','));
-      formData.append('sessionId', sessionId);
-
-      const response = await axios.post('/api/companies/import', formData, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
-      });
-
-      setMessage(response.data.message);
-      setShowImportModal(false);
-      setImportFile(null);
-      setPreviewData(null);
-      setSelectedColumns([]);
-      fetchCompanies();
-    } catch (err) {
-      setError('Failed to import companies: ' + (err.response?.data?.error || err.message));
-    } finally {
-      setLoading(false);
-    }
+  const handleImportConfirm = () => {
+    importCompaniesMutation.mutate();
   };
 
   const handleExport = () => {
@@ -605,37 +684,6 @@ const Companies = () => {
 
   const handleSelectAll = (e) => {
     setSelectedCompanies(e.target.checked ? new Set(companies.map(c => c.id)) : new Set());
-  };
-
-  const handleDeleteSelected = () => {
-    if (!selectedCompanies.size) return;
-
-    setModalConfig({
-      isOpen: true,
-      onConfirm: async () => {
-        setLoading(true);
-        try {
-          const token = localStorage.getItem('token');
-          await axios.delete('/api/companies/delete/bulk', {
-            headers: { Authorization: `Bearer ${token}` },
-            data: [...selectedCompanies],
-          });
-          setCompanies(prev => prev.filter(c => !selectedCompanies.has(c.id)));
-          setMessage(`${selectedCompanies.size} company(s) deleted!`);
-          setSelectedCompanies(new Set());
-          setSelectedCompany(null);
-          fetchCompanies();
-        } catch (err) {
-          setError('Failed to delete selected companies: ' + err.message);
-        } finally {
-          setLoading(false);
-          setModalConfig({ ...modalConfig, isOpen: false });
-        }
-      },
-      title: 'Delete Selected Companies',
-      message: `Are you sure you want to delete ${selectedCompanies.size} selected company(s)? This action cannot be undone.`,
-      actionType: 'delete',
-    });
   };
 
   // UUID generator for sessionId
@@ -746,6 +794,7 @@ const Companies = () => {
           </div>
         </div>
 
+        {queryError && <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-6 shadow-md">{queryError.message}</div>}
         {error && <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-6 shadow-md">{error}</div>}
         {message && <div className="bg-green-100 text-green-700 p-4 rounded-lg mb-6 shadow-md">{message}</div>}
 
@@ -802,7 +851,7 @@ const Companies = () => {
                 isClearable
               />
             </div>
-            {!loading && totalCompanies > 0 && (
+            {!isLoading && totalCompanies > 0 && (
               <div className="bg-white shadow-md rounded-xl p-2 text-gray-700 text-sm">
                 {totalCompanies} {totalCompanies === 1 ? 'company' : 'companies'} found
               </div>
@@ -827,7 +876,7 @@ const Companies = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loading ? (
+          {isLoading ? (
             <div className="col-span-full text-center p-6">
               <FaSpinner className="animate-spin text-blue-600 text-2xl" />
             </div>
@@ -837,14 +886,22 @@ const Companies = () => {
             </div>
           ) : (
             <>
-              <div className="col-span-full flex items-center justify-between mb-4">
+              <div className="col-span-full flex items-center ml-2 text-xl justify-between mb-4">
                 <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    className="custom-checkbox"
-                    onChange={handleSelectAll}
-                    checked={companies.length > 0 && companies.every(c => selectedCompanies.has(c.id))}
-                  />
+                  <div className="checkbox-wrapper">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={companies.length > 0 && companies.every(c => selectedCompanies.has(c.id))}
+                        onChange={handleSelectAll}
+                      />
+                      <span>
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </span>
+                    </label>
+                  </div>
                   <span className="text-gray-700">Select All</span>
                 </label>
                 {selectedCompanies.size > 0 && (
@@ -861,14 +918,22 @@ const Companies = () => {
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        className="custom-checkbox"
-                        checked={selectedCompanies.has(company.id)}
-                        onChange={() => handleSelectCompany(company.id)}
-                        onClick={e => e.stopPropagation()}
-                      />
-                     <div
+                      <div className="checkbox-wrapper">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={selectedCompanies.has(company.id)}
+                            onChange={() => handleSelectCompany(company.id)}
+                            onClick={e => e.stopPropagation()}
+                          />
+                          <span>
+                            <svg viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </span>
+                        </label>
+                      </div>
+                      <div
                         className="w-[3rem] h-[3rem] md:w-[3.5rem] md:h-[3.5rem] rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden"
                         style={{ backgroundColor: company.photoUrl ? "transparent" : getRandomColor() }}
                       >
@@ -1002,68 +1067,82 @@ const Companies = () => {
         )}
 
         {showImportModal && (
-          <div className="fixed inset-0 bg-gray-800 bg-opacity-60 flex items-center justify-center h-screen" style={{ zIndex: 9990 }}>
-            <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-3xl max-h-[70vh] overflow-y-auto relative transform hover:scale-102 transition-all duration-300 border-t-4 border-purple-500">
-              <button
-                onClick={() => { setShowImportModal(false); setPreviewData(null); setSelectedColumns([]); setImportProgress(0); }}
-                className="absolute top-4 right-4 text-gray-600 hover:text-red-500 text-2xl font-bold transition-colors duration-200"
-              >
-                ✕
-              </button>
-              <h2 className="text-2xl font-bold mb-6 text-gray-900">Import Companies</h2>
-              <div className="space-y-4">
-                <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                  <label className="block text-gray-700 font-semibold mb-2">File Type</label>
-                  <select
-                    value={importType}
-                    onChange={(e) => setImportType(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-800 shadow-sm transition-all duration-200 hover:border-purple-400"
-                  >
-                    <option value="csv">CSV</option>
-                    <option value="excel">Excel (.xlsx)</option>
-                  </select>
+          <div className="fixed inset-0 bg-gray-800 bg-opacity-60 flex items-center justify-center z-[9990] p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto transform transition-all duration-300 border-t-4 border-purple-500">
+              <div className="relative p-6">
+                <button
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setPreviewData(null);
+                    setSelectedColumns([]);
+                    setImportProgress(0);
+                    setImportFile(null);
+                    setError(null);
+                  }}
+                  className="absolute top-4 right-4 text-gray-500 hover:text-red-500 text-2xl font-bold transition-colors duration-200"
+                >
+                  ✕
+                </button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Import Companies</h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">File Type</label>
+                    <select
+                      value={importType}
+                      onChange={(e) => setImportType(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-800 shadow-sm transition-all duration-200 hover:border-purple-400"
+                    >
+                      <option value="csv">CSV</option>
+                      <option value="excel">Excel (.xlsx)</option>
+                    </select>
+                  </div>
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Upload File (Max 100MB)</label>
+                    <input
+                      type="file"
+                      accept={importType === 'csv' ? '.csv' : '.xlsx'}
+                      onChange={(e) => setImportFile(e.target.files[0])}
+                      className="w-full text-gray-800 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition-all duration-200"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">Headers: Name, Email, Phone, Status, Address, Website, Industry, Notes, Owner</p>
+                  </div>
                 </div>
-                <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                  <label className="block text-gray-700 font-semibold mb-2">Upload File (Max 100MB)</label>
-                  <input
-                    type="file"
-                    accept={importType === 'csv' ? '.csv' : '.xlsx'}
-                    onChange={(e) => setImportFile(e.target.files[0])}
-                    className="w-full text-gray-800 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition-all duration-200"
-                  />
-                  <p className="text-xs text-gray-500 mt-2">Headers: Name, Email, Phone, Status, Address, Website, Industry, Notes, Owner</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="updateExisting"
-                    checked={updateExisting}
-                    onChange={(e) => setUpdateExisting(e.target.checked)}
-                    className="custom-checkbox"
-                  />
-                  <label htmlFor="updateExisting" className="text-gray-700">Update existing companies</label>
-                </div>
-                <div className="flex justify-end space-x-4">
+
+                <div className="flex items-center justify-between mb-6">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="updateExisting"
+                      checked={updateExisting}
+                      onChange={(e) => setUpdateExisting(e.target.checked)}
+                      className="h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                    />
+                    <span className="text-sm text-gray-700">Update existing companies</span>
+                  </label>
                   <button
                     onClick={handlePreview}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 font-semibold transition-colors duration-200 flex items-center shadow-md hover:shadow-lg"
-                    disabled={loading}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 font-semibold transition-colors duration-200 flex items-center shadow-md disabled:bg-gray-400"
+                    disabled={loading || !importFile}
                   >
                     {loading && !previewData && <FaSpinner className="animate-spin mr-2" />}
                     Upload for Preview
                   </button>
                 </div>
-                {previewData && (
-                  <div className="mt-4">
-                    <h3 className="text-lg font-semibold mb-2 text-gray-900">Preview of Companies to be Imported</h3>
-                    {previewData.unmappedFields.length > 0 && (
-                      <p className="text-yellow-600 mb-2">
-                        Unmapped columns (added to notes): {previewData.unmappedFields.join(', ')}
-                      </p>
+
+                {previewData && previewData.headers && previewData.headers.length > 0 && previewData.companies && previewData.companies.length > 0 ? (
+                  <div className="space-y-6">
+                    {previewData.unmappedFields && previewData.unmappedFields.length > 0 && (
+                      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+                        <p className="text-sm text-yellow-700">
+                          Unmapped columns (added to notes): <span className="font-medium">{previewData.unmappedFields.join(', ')}</span>
+                        </p>
+                      </div>
                     )}
-                    <div className="mb-4">
-                      <label className="block text-gray-700 font-semibold mb-2">Select Columns to Import</label>
-                      <div className="flex flex-wrap gap-3">
+
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-3">Select Columns to Import</h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
                         {previewData.headers.map(header => (
                           <label key={header} className="flex items-center space-x-2">
                             <input
@@ -1074,50 +1153,63 @@ const Companies = () => {
                                   e.target.checked ? [...prev, header.toLowerCase()] : prev.filter(col => col !== header.toLowerCase())
                                 );
                               }}
-                              className="custom-checkbox"
+                              className="h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                             />
-                            <span className="text-sm text-gray-700">{header}</span>
+                            <span className="text-sm text-gray-700 capitalize">{header}</span>
                           </label>
                         ))}
                       </div>
                     </div>
-                    <div className="mb-4">
-                      <label className="block text-gray-700 font-semibold mb-2">Companies to be Created</label>
-                      <select multiple className="preview-select" size="5">
-                        {previewData.companies.map((company, index) => (
-                          <option key={index} value={index}>
-                            {company.name} (Email: {company.email || 'N/A'}, Phone: {company.phone || 'N/A'})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {importProgress > 0 && (
-                      <div className="mt-4">
-                        <label className="block text-gray-700 font-semibold">Import Progress</label>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
-                          <div className="bg-purple-600 h-2.5 rounded-full" style={{ width: `${importProgress}%` }}></div>
+
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-3">Companies to be Imported ({previewData.companies.length})</h3>
+                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 max-h-64 overflow-y-auto">
+                        <div className="space-y-2">
+                          {previewData.companies.map((company, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between p-2 bg-white rounded-lg shadow-sm hover:bg-gray-100 transition-colors duration-200"
+                            >
+                              <div className="text-sm text-gray-800">
+                                <span className="font-medium">{company.name || 'Unnamed'}</span>
+                                <span className="text-gray-500 ml-2">
+                                  (Email: {company.email || 'N/A'}, Phone: {company.phone || 'N/A'})
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <p className="text-sm text-gray-600">{Math.round(importProgress)}%</p>
                       </div>
-                    )}
-                    <div className="fixed-buttons">
+                    </div>
+
+                    <div className="flex justify-end space-x-4 pt-4">
                       <button
-                        onClick={() => { setPreviewData(null); setSelectedColumns([]); setImportProgress(0); }}
-                        className="px-4 py-2 bg-gray-200 rounded-xl hover:bg-gray-300 text-gray-800 font-semibold transition-colors duration-200 shadow-md hover:shadow-lg"
+                        onClick={() => {
+                          setPreviewData(null);
+                          setSelectedColumns([]);
+                          setImportProgress(0);
+                        }}
+                        className="px-4 py-2 bg-gray-200 text-gray-800 Rounded-xl hover:bg-gray-300 font-semibold transition-colors duration-200 shadow-md"
                       >
-                        Cancel
+                        Cancel Preview
                       </button>
                       <button
                         onClick={handleImportConfirm}
-                        className="px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 font-semibold transition-colors duration-200 flex items-center shadow-md hover:shadow-lg"
-                        disabled={loading}
+                        className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold transition-colors duration-200 flex items-center shadow-md disabled:bg-gray-400"
+                        disabled={importCompaniesMutation.isLoading || selectedColumns.length === 0}
                       >
-                        {loading && previewData && <FaSpinner className="animate-spin mr-2" />}
+                        {importCompaniesMutation.isLoading && <FaSpinner className="animate-spin mr-2" />}
                         Confirm Import
                       </button>
                     </div>
                   </div>
-                )}
+                ) : previewData ? (
+                  <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
+                    <p className="text-sm text-red-700">
+                      No valid data to preview. Please check the file format and try again.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1162,184 +1254,184 @@ const Companies = () => {
           </div>
         )}
 
-{showForm && (
-  <div className="fixed inset-0 bg-gray-800 bg-opacity-60 flex items-center justify-center h-screen no-scroll" style={{ zIndex: 9990 }}>
-    <div className="form-container w-full max-w-2xl relative max-h-[70vh] overflow-y-auto">
-      <button
-        onClick={resetForm}
-        className="absolute top-4 right-4 text-gray-600 hover:text-red-500 text-2xl font-bold"
-      >
-        ✕
-      </button>
-      <h2 className="text-2xl font-bold mb-6 text-gray-900">{editingCompanyId ? 'Edit Company' : 'Create Company'}</h2>
-      <form onSubmit={handleSubmit} className="form-grid gap-y-4">
-        <div>
-          <label className="form-label">Name</label>
-          <input
-            type="text"
-            placeholder="Enter company name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="form-input"
-            required
-          />
-        </div>
-        <div>
-          <label className="form-label">Email</label>
-          <input
-            type="email"
-            placeholder="Enter email address"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            className="form-input"
-            required
-          />
-        </div>
-        <div>
-          <label className="form-label">Phone</label>
-          <input
-            type="text"
-            placeholder="Enter phone number"
-            value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            className="form-input"
-          />
-        </div>
-        <div>
-          <label className="form-label">Status</label>
-          <select
-            value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-            className="form-input"
-          >
-            <option value="">Select Status</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
-        </div>
-        <div>
-          <label className="form-label">Owner</label>
-          <Select
-            options={ownerOptions.slice(2)}
-            value={formData.owner ? ownerOptions.find(opt => opt.value === formData.owner.id) : null}
-            onChange={(opt) => setFormData({ ...formData, owner: opt?.user || null })}
-            placeholder="Select Owner"
-            className="form-select-container"
-            styles={{
-              control: (provided) => ({
-                ...provided,
-                border: '1px solid #d1d5db',
-                borderRadius: '0.5rem',
-                padding: '0.25rem',
-                background: '#ffffff',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                '&:hover': { borderColor: '#93c5fd' },
-                '&:focus': { borderColor: '#3b82f6', boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.3)' },
-              }),
-              placeholder: (provided) => ({ ...provided, color: '#9ca3af', fontSize: '0.9rem' }),
-              option: (provided, state) => ({
-                ...provided,
-                backgroundColor: state.isFocused ? '#eff6ff' : 'white',
-                color: '#374151',
-                fontSize: '0.9rem',
-                '&:hover': { backgroundColor: '#dbeafe' },
-              }),
-            }}
-            isClearable
-          />
-        </div>
-        <div>
-          <label className="form-label">Address</label>
-          <input
-            type="text"
-            placeholder="Enter address"
-            value={formData.address}
-            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-            className="form-input"
-          />
-        </div>
-        <div>
-          <label className="form-label">Website</label>
-          <input
-            type="text"
-            placeholder="Enter website"
-            value={formData.website}
-            onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-            className="form-input"
-          />
-        </div>
-        <div>
-          <label className="form-label">Industry</label>
-          <input
-            type="text"
-            placeholder="Enter industry"
-            value={formData.industry}
-            onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-            className="form-input"
-          />
-        </div>
-        <div className="col-span-2">
-          <label className="form-label">Notes</label>
-          <textarea
-            placeholder="Add any notes..."
-            value={formData.notes}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            className="form-textarea"
-          />
-        </div>
-        <div className="col-span-2">
-          <label className="form-label">Photo</label>
-          <div className="form-file-container">
-            <input
-              type="file"
-              id="company-photo"
-              accept="image/*"
-              onChange={(e) => setFormData({ ...formData, photo: e.target.files[0] })}
-              className="form-file-input"
-            />
-            <label htmlFor="company-photo" className="form-file-label">
-              {formData.photo ? formData.photo.name : 'Drag or click to upload a photo'}
-            </label>
-          </div>
-          {(formData.photo || formData.photoUrl) && (
-            <div className="form-photo-preview">
-              <img
-                src={formData.photo ? URL.createObjectURL(formData.photo) : `${axios.defaults.baseURL}${formData.photoUrl}`}
-                alt="Preview"
-                className="form-photo-img"
-              />
+        {showForm && (
+          <div className="fixed inset-0 bg-gray-800 bg-opacity-60 flex items-center justify-center h-screen no-scroll" style={{ zIndex: 9990 }}>
+            <div className="form-container w-full max-w-2xl relative max-h-[70vh] overflow-y-auto">
               <button
-                onClick={() => setFormData({ ...formData, photo: null, photoUrl: '' })}
-                className="form-photo-remove"
-                type="button"
+                onClick={handleCancel}
+                className="absolute top-4 right-4 text-gray-600 hover:text-red-500 text-2xl font-bold"
               >
                 ✕
               </button>
+              <h2 className="text-2xl font-bold mb-6 text-gray-900">{editingCompanyId ? 'Edit Company' : 'Create Company'}</h2>
+              <form onSubmit={handleSubmit} className="form-grid gap-y-4">
+                <div>
+                  <label className="form-label">Name</label>
+                  <input
+                    type="text"
+                    placeholder="Enter company name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="form-input"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Email</label>
+                  <input
+                    type="email"
+                    placeholder="Enter email address"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="form-input"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Phone</label>
+                  <input
+                    type="text"
+                    placeholder="Enter phone number"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="form-input"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="form-input"
+                  >
+                    <option value="">Select Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Owner</label>
+                  <Select
+                    options={ownerOptions.slice(2)}
+                    value={formData.owner ? ownerOptions.find(opt => opt.value === formData.owner.id) : null}
+                    onChange={(opt) => setFormData({ ...formData, owner: opt?.user || null })}
+                    placeholder="Select Owner"
+                    className="form-select-container"
+                    styles={{
+                      control: (provided) => ({
+                        ...provided,
+                        border: '1px solid #d1d5db',
+                        borderRadius: '0.5rem',
+                        padding: '0.25rem',
+                        background: '#ffffff',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                        '&:hover': { borderColor: '#93c5fd' },
+                        '&:focus': { borderColor: '#3b82f6', boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.3)' },
+                      }),
+                      placeholder: (provided) => ({ ...provided, color: '#9ca3af', fontSize: '0.9rem' }),
+                      option: (provided, state) => ({
+                        ...provided,
+                        backgroundColor: state.isFocused ? '#eff6ff' : 'white',
+                        color: '#374151',
+                        fontSize: '0.9rem',
+                        '&:hover': { backgroundColor: '#dbeafe' },
+                      }),
+                    }}
+                    isClearable
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Address</label>
+                  <input
+                    type="text"
+                    placeholder="Enter address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="form-input"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Website</label>
+                  <input
+                    type="text"
+                    placeholder="Enter website"
+                    value={formData.website}
+                    onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                    className="form-input"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Industry</label>
+                  <input
+                    type="text"
+                    placeholder="Enter industry"
+                    value={formData.industry}
+                    onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+                    className="form-input"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="form-label">Notes</label>
+                  <textarea
+                    placeholder="Add any notes..."
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="form-textarea"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="form-label">Photo</label>
+                  <div className="form-file-container">
+                    <input
+                      type="file"
+                      id="company-photo"
+                      accept="image/*"
+                      onChange={(e) => setFormData({ ...formData, photo: e.target.files[0] })}
+                      className="form-file-input"
+                    />
+                    <label htmlFor="company-photo" className="form-file-label">
+                      {formData.photo ? formData.photo.name : 'Drag or click to upload a photo'}
+                    </label>
+                  </div>
+                  {(formData.photo || formData.photoUrl) && (
+                    <div className="form-photo-preview">
+                      <img
+                        src={formData.photo ? URL.createObjectURL(formData.photo) : `${axios.defaults.baseURL}${formData.photoUrl}`}
+                        alt="Preview"
+                        className="form-photo-img"
+                      />
+                      <button
+                        onClick={() => setFormData({ ...formData, photo: null, photoUrl: '' })}
+                        className="form-photo-remove"
+                        type="button"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="col-span-2 flex justify-end space-x-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="form-button form-button-secondary"
+                    disabled={saveCompanyMutation.isLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="form-button form-button-primary flex items-center"
+                    disabled={saveCompanyMutation.isLoading}
+                  >
+                    {saveCompanyMutation.isLoading && <FaSpinner className="animate-spin mr-2" />}
+                    {editingCompanyId ? 'Update' : 'Create'}
+                  </button>
+                </div>
+              </form>
             </div>
-          )}
-        </div>
-        <div className="col-span-2 flex justify-end space-x-4 pt-4">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="form-button form-button-secondary"
-            disabled={loading}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="form-button form-button-primary flex items-center"
-            disabled={loading}
-          >
-            {loading && <FaSpinner className="animate-spin mr-2" />}
-            {editingCompanyId ? 'Update' : 'Create'}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-)}
+          </div>
+        )}
       </div>
       <CustomModal
         isOpen={modalConfig.isOpen}
@@ -1348,7 +1440,7 @@ const Companies = () => {
         title={modalConfig.title}
         message={modalConfig.message}
         actionType={modalConfig.actionType}
-        loading={loading}
+        loading={saveCompanyMutation.isLoading || deleteCompanyMutation.isLoading || deleteSelectedMutation.isLoading || importCompaniesMutation.isLoading}
       />
     </div>
   );
