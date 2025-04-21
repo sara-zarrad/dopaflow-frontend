@@ -480,7 +480,7 @@ const Opportunities = () => {
     setFormData({
       ...opp,
       contactId: opp.contact?.id || null,
-      status: opp.status || 'IN_PROGRESS',
+      status: opp.stage === 'CLOSED' ? (opp.status === 'WON' || opp.status === 'LOST' ? opp.status : 'WON') : 'IN_PROGRESS',
     });
     setEditingOpportunityId(opp.id);
     debouncedSetShowForm(true);
