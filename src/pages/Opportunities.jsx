@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  FaPlus, FaEdit, FaTrash, FaChartLine, FaSearch, FaFilter, FaExclamationCircle ,FaArrowUp, FaArrowDown, FaTimes, FaSpinner, FaExpand, FaSortUp, FaSortDown, FaUndo, FaCheck,
+  FaPlus, FaEdit, FaTrash, FaChartLine, FaSearch, FaFilter, FaExclamationCircle, FaArrowUp, FaArrowDown, FaTimes, FaSpinner, FaExpand, FaSortUp, FaSortDown, FaUndo, FaCheck,
   FaTag, FaUser, FaList, FaChartBar, FaCalendarAlt
 } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -53,10 +53,10 @@ const Opportunities = () => {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [opportunityToDelete, setOpportunityToDelete] = useState(null);
   const [showContactDropdown, setShowContactDropdown] = useState(false);
+  const [contactFetchFailed, setContactFetchFailed] = useState(false); // New state to track contact fetch failure
   const formRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  // Temporary storage for fetched data
   const [cachedOpportunities, setCachedOpportunities] = useState(null);
   const [cachedContacts, setCachedContacts] = useState(null);
 
@@ -83,26 +83,20 @@ const Opportunities = () => {
 
   const MessageDisplay = ({ message, type, onClose }) => {
     if (!message) return null;
-  
     const bgColor = type === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-red-100 border-red-500 text-red-700';
-  
     return (
       <div className={`fixed top-5 left-1/2 transform -translate-x-1/2 mt-5 p-4 ${bgColor} border-l-4 rounded-xl shadow-lg flex items-center justify-between animate-slideIn max-w-3xl w-full z-[1000]`}>
         <div className="flex items-center">
           {type === 'success' ? <FaCheck className="text-xl mr-3" /> : <FaExclamationCircle className="text-xl mr-3" />}
           <span className="text-base">{message}</span>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 hover:bg-opacity-20 rounded-xl transition-colors duration-200"
-        >
+        <button onClick={onClose} className="p-1 hover:bg-opacity-20 rounded-xl transition-colors duration-200">
           <FaTimes className="w-4 h-4" />
         </button>
       </div>
     );
   };
 
-  // Handle click outside to close form
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (formRef.current && !formRef.current.contains(event.target)) {
@@ -117,7 +111,6 @@ const Opportunities = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showForm, preselectedContactId, editingOpportunityId, debouncedSetShowForm]);
 
-  // Handle click outside to close contact dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -131,14 +124,10 @@ const Opportunities = () => {
   useEffect(() => {
     let timer;
     if (successMessage) {
-      timer = setTimeout(() => {
-        setSuccessMessage(null);
-      }, 5000);
+      timer = setTimeout(() => setSuccessMessage(null), 5000);
     }
     if (errorMessage) {
-      timer = setTimeout(() => {
-        setErrorMessage(null);
-      }, 5000);
+      timer = setTimeout(() => setErrorMessage(null), 5000);
     }
     return () => clearTimeout(timer);
   }, [successMessage, errorMessage]);
@@ -156,7 +145,6 @@ const Opportunities = () => {
     }, 300),
     [contacts]
   );
-
 
   useEffect(() => {
     fetchInitialData();
@@ -313,16 +301,23 @@ const Opportunities = () => {
         updatedOpportunity = (await api.post('/opportunities/add', data)).data;
         setSuccessMessage(`Opportunity "${formData.title}" created successfully!`);
       }
-
-      // Update local state instead of refetching
+  
+      // Enrich the opportunity with full contact details from contacts state
+      if (updatedOpportunity.contact && updatedOpportunity.contact.id) {
+        const fullContact = contacts.find(c => c.id === updatedOpportunity.contact.id);
+        if (fullContact) {
+          updatedOpportunity.contact = fullContact;
+        }
+      }
+  
+      // Update the allOpportunities state with the enriched opportunity
       setAllOpportunities((prev) =>
         editingOpportunityId
           ? prev.map((opp) => (opp.id === editingOpportunityId ? updatedOpportunity : opp))
           : [...prev, updatedOpportunity]
       );
       applyFilters(editingOpportunityId ? allOpportunities.map((opp) => (opp.id === editingOpportunityId ? updatedOpportunity : opp)) : [...allOpportunities, updatedOpportunity]);
-
-      // Reset form and states
+  
       debouncedSetShowForm(false);
       setShowUpdateModal(false);
       setFormData({ id: null, title: '', value: 0, contactId: '', priority: 'MEDIUM', progress: 0, stage: 'PROSPECTION', status: 'IN_PROGRESS' });
@@ -331,6 +326,7 @@ const Opportunities = () => {
       setPreselectedContactName('');
       setShowAssignPopup(false);
       setShowExistingOpportunities(false);
+      setContactFetchFailed(false);
       navigate('/opportunities', { replace: true });
     } catch (error) {
       console.error('Failed to save opportunity:', error);
@@ -510,22 +506,25 @@ const Opportunities = () => {
 
   const handleEdit = async (opp) => {
     let contact = contacts.find((c) => c.id === opp.contact?.id);
+    let fetchFailed = false;
     if (!contact && opp.contact?.id) {
       contact = await fetchContactById(opp.contact.id);
+      if (!contact) {
+        fetchFailed = true;
+      }
     }
-
     setFormData({
       ...opp,
-      contactId: opp.contact?.id || null,
+      contactId: contact ? contact.id : opp.contact?.id || null,
       status: opp.stage === 'CLOSED' ? (opp.status === 'WON' || opp.status === 'LOST' ? opp.status : 'WON') : 'IN_PROGRESS',
     });
     setEditingOpportunityId(opp.id);
+    setContactFetchFailed(fetchFailed);
     debouncedSetShowForm(true);
     setContactSearch('');
-    setExpandedOpportunityId(null); // Close expanded view
+    setExpandedOpportunityId(null);
   };
 
-  // Custom Modal Component
   const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, loading }) => {
     if (!isOpen) return null;
 
@@ -591,10 +590,10 @@ const Opportunities = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-8 font-sans antialiased rounded-[12px] border border-gray-200">
       <header className="flex flex-col sm:flex-row justify-between items-center mb-8 sm:mb-10">
         <div className="mb-4 sm:mb-0">
-        <h1 className="text-3xl font-bold text-[#333] flex items-center">
-        <span className="material-icons-round mr-3 text-[#0056B3]">trending_up</span>
-        Opportunities management
-      </h1>
+          <h1 className="text-3xl font-bold text-[#333] flex items-center">
+            <span className="material-icons-round mr-3 text-[#0056B3]">trending_up</span>
+            Opportunities management
+          </h1>
           <p className="text-gray-600 mt-1 text-sm font-medium ml-10">Track and manage your opportunities with ease</p>
         </div>
         <button
@@ -602,6 +601,7 @@ const Opportunities = () => {
             setFormData({ id: null, title: '', value: 0, contactId: '', priority: 'MEDIUM', progress: 0, stage: 'PROSPECTION', status: 'IN_PROGRESS' });
             setEditingOpportunityId(null);
             setContactSearch('');
+            setContactFetchFailed(false);
             debouncedSetShowForm(true);
           }}
           className="flex items-center px-4 py-2 sm:px-6 sm:py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl shadow-lg hover:from-indigo-700 hover:to-indigo-800 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-300/50"
@@ -609,22 +609,20 @@ const Opportunities = () => {
           <FaPlus className="mr-2" /> New Opportunity
         </button>
       </header>
-                  {successMessage && (
-              <MessageDisplay
-                message={successMessage}
-                type="success"
-                onClose={() => setSuccessMessage(null)}
-              />
-            )}
-
-            {errorMessage && (
-              <MessageDisplay
-                message={errorMessage}
-                type="error"
-                onClose={() => setErrorMessage(null)}
-              />
-            )}
-      {/* Stats Section */}
+      {successMessage && (
+        <MessageDisplay
+          message={successMessage}
+          type="success"
+          onClose={() => setSuccessMessage(null)}
+        />
+      )}
+      {errorMessage && (
+        <MessageDisplay
+          message={errorMessage}
+          type="error"
+          onClose={() => setErrorMessage(null)}
+        />
+      )}
       <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-10">
         <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md border border-gray-100/50 transition-all duration-300 transform hover:scale-105 hover:shadow-xl">
           <div className="flex items-center space-x-4">
@@ -673,7 +671,6 @@ const Opportunities = () => {
         </div>
       </section>
 
-      {/* Filter and Expand Buttons */}
       <div className="flex justify-end mb-6 space-x-4">
         <button
           onClick={() => setIsFilterOpen(!isFilterOpen)}
@@ -692,7 +689,6 @@ const Opportunities = () => {
         {isLoading && <LoadingIndicator />}
       </div>
 
-      {/* Filters Panel */}
       {isFilterOpen && (
         <div className="bg-white shadow-lg rounded-xl p-8 mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transform hover:shadow-xl transition-shadow duration-300">
           <div className="flex flex-wrap gap-6 items-center">
@@ -778,7 +774,6 @@ const Opportunities = () => {
         </div>
       )}
 
-      {/* Opportunities Display */}
       {isExpanded ? (
         <div className="bg-white rounded-xl shadow-lg border border-gray-100/50 p-4 sm:p-6 transition-all duration-500 animate-fadeIn">
           <div className="flex border-b border-gray-200 mb-6">
@@ -1003,7 +998,6 @@ const Opportunities = () => {
         </div>
       )}
 
-      {/* Assign Popup */}
       {showAssignPopup && preselectedContactId && (
         <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
           <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100/50 animate-fadeIn">
@@ -1026,7 +1020,6 @@ const Opportunities = () => {
         </div>
       )}
 
-      {/* Existing Opportunities Selection */}
       {showExistingOpportunities && (
         <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
           <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto border border-gray-100/50 animate-fadeIn">
@@ -1054,38 +1047,38 @@ const Opportunities = () => {
         </div>
       )}
 
-      {/* Opportunity Form */}
       {showForm && formData && (
         <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
           <div ref={formRef} className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-100/50 animate-fadeIn">
-          <div className="flex justify-between items-center mb-6">
-  <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-    {editingOpportunityId ? (
-      <>
-        <FaEdit className="mr-2 text-blue-600" />
-        Edit Opportunity
-      </>
-    ) : (
-      <>
-        <FaPlus className="mr-2 text-blue-600" />
-        New Opportunity
-      </>
-    )}
-  </h2>
-  <button
-    onClick={() => {
-      debouncedSetShowForm(false);
-      setFormData({ id: null, title: '', value: 0, contactId: '', priority: 'MEDIUM', progress: 0, stage: 'PROSPECTION', status: 'IN_PROGRESS' });
-      setEditingOpportunityId(null);
-      setContactSearch('');
-      setPreselectedContactName('');
-      if (preselectedContactId && !editingOpportunityId) handleBackToAssignPopup();
-    }}
-    className="p-2 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors duration-200"
-  >
-    <FaTimes className="w-5 h-5" />
-  </button>
-</div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+                {editingOpportunityId ? (
+                  <>
+                    <FaEdit className="mr-2 text-blue-600" />
+                    Edit Opportunity
+                  </>
+                ) : (
+                  <>
+                    <FaPlus className="mr-2 text-blue-600" />
+                    New Opportunity
+                  </>
+                )}
+              </h2>
+              <button
+                onClick={() => {
+                  debouncedSetShowForm(false);
+                  setFormData({ id: null, title: '', value: 0, contactId: '', priority: 'MEDIUM', progress: 0, stage: 'PROSPECTION', status: 'IN_PROGRESS' });
+                  setEditingOpportunityId(null);
+                  setContactSearch('');
+                  setPreselectedContactName('');
+                  setContactFetchFailed(false);
+                  if (preselectedContactId && !editingOpportunityId) handleBackToAssignPopup();
+                }}
+                className="p-2 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors duration-200"
+              >
+                <FaTimes className="w-5 h-5" />
+              </button>
+            </div>
 
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-1">
@@ -1100,7 +1093,6 @@ const Opportunities = () => {
                 />
               </div>
 
-              {/* Updated Contact Field */}
               <div className="space-y-1 w-full max-w-md">
                 <label className="block text-sm font-medium text-gray-700">Contact</label>
                 <div className="relative">
@@ -1136,9 +1128,31 @@ const Opportunities = () => {
                           </div>
                         );
                       }
+                      if (!selectedContact && contactFetchFailed) {
+                        return (
+                          <div
+                            className="w-full px-4 py-3 bg-red-50 border border-red-200 rounded-lg shadow-sm text-red-700 flex justify-between items-center cursor-pointer"
+                            onClick={() => setShowContactDropdown(!showContactDropdown)}
+                          >
+                            <span>Failed to load contact</span>
+                            <svg
+                              className={`w-5 h-5 text-red-400 transition-transform duration-200 ${showContactDropdown ? 'rotate-180' : ''}`}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                          </div>
+                        );
+                      }
                       if (!selectedContact) {
                         return (
-                          <div className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex justify-between items-center">
+                          <div
+                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex justify-between items-center cursor-pointer"
+                            onClick={() => setShowContactDropdown(!showContactDropdown)}
+                          >
                             <span>Loading...</span>
                             <svg
                               className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showContactDropdown ? 'rotate-180' : ''}`}
@@ -1210,7 +1224,6 @@ const Opportunities = () => {
                     </div>
                   )}
 
-                  {/* Contact Dropdown */}
                   {showContactDropdown && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       <div className="p-2 border-b border-gray-200">
@@ -1233,6 +1246,7 @@ const Opportunities = () => {
                             setFormData({ ...formData, contactId: null });
                             setShowContactDropdown(false);
                             setContactSearch('');
+                            setContactFetchFailed(false);
                           }}
                         >
                           (None)
@@ -1246,6 +1260,7 @@ const Opportunities = () => {
                                 setFormData({ ...formData, contactId: contact.id });
                                 setShowContactDropdown(false);
                                 setContactSearch('');
+                                setContactFetchFailed(false);
                               }}
                             >
                               <div
@@ -1282,7 +1297,6 @@ const Opportunities = () => {
                 </div>
               </div>
 
-              {/* Rest of the form fields */}
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Value (TND)</label>
                 <input
@@ -1382,6 +1396,7 @@ const Opportunities = () => {
                     setEditingOpportunityId(null);
                     setContactSearch('');
                     setPreselectedContactName('');
+                    setContactFetchFailed(false);
                     if (preselectedContactId && !editingOpportunityId) handleBackToAssignPopup();
                   }}
                   className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-xl hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
@@ -1400,7 +1415,6 @@ const Opportunities = () => {
         </div>
       )}
 
-      {/* Expanded Opportunity Details */}
       {expandedOpportunityId && (
         <div
           className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 ${expandedOpportunityId ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
@@ -1433,7 +1447,6 @@ const Opportunities = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       <CustomModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
@@ -1444,7 +1457,6 @@ const Opportunities = () => {
         loading={isLoading}
       />
 
-      {/* Update Confirmation Modal */}
       <CustomModal
         isOpen={showUpdateModal}
         onClose={() => setShowUpdateModal(false)}
@@ -1458,7 +1470,6 @@ const Opportunities = () => {
   );
 };
 
-// Opportunity Details Component
 const OpportunityDetails = ({ opportunity, onClose, onEdit, onDelete, onChangeStage, onIncrementProgress, onDecrementProgress, onUpdateStatus }) => {
   if (!opportunity) return null;
   const getInitials = (name = '') => {
@@ -1544,7 +1555,7 @@ const OpportunityDetails = ({ opportunity, onClose, onEdit, onDelete, onChangeSt
             )}
             <span>{opportunity.owner?.username || 'None'}</span>
           </div>
-          </div>
+        </div>
         <div className="flex items-center space-x-3">
           <FaList className="text-gray-400" />
           <div className="flex items-center space-x-2">
