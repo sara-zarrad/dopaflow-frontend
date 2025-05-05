@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FaPlus, FaSearch, FaFilter, FaTrash, FaEdit, FaDownload,
   FaSpinner, FaUser, FaEnvelope, FaPhone, FaBuilding, FaStickyNote,
-  FaUndo, FaUpload, FaClock, FaCalendarAlt, FaInfoCircle, FaTimes, FaExclamationTriangle
+  FaUndo, FaUpload, FaClock, FaCalendarAlt, FaInfoCircle, FaCheck, FaExclamationCircle ,FaTimes, FaExclamationTriangle
 } from 'react-icons/fa';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -47,6 +47,27 @@ const loadCompanyOptions = async (inputValue) => {
     console.error('Failed to fetch companies:', err);
     return [];
   }
+};
+
+const MessageDisplay = ({ message, type, onClose }) => {
+  if (!message) return null;
+
+  const bgColor = type === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-red-100 border-red-500 text-red-700';
+
+  return (
+    <div className={`fixed top-5 left-1/2 transform -translate-x-1/2 mt-5 p-4 ${bgColor} border-l-4 rounded-xl shadow-lg flex items-center justify-between animate-slideIn max-w-3xl w-full z-[1000]`}>
+      <div className="flex items-center">
+        {type === 'success' ? <FaCheck className="text-xl mr-3" /> : <FaExclamationCircle className="text-xl mr-3" />}
+        <span className="text-base">{message}</span>
+      </div>
+      <button
+        onClick={onClose}
+        className="p-1 hover:bg-opacity-20 rounded-xl transition-colors duration-200"
+      >
+        <FaTimes className="w-4 h-4" />
+      </button>
+    </div>
+  );
 };
 const getRandomColor = () => '#b0b0b0';
 const customStyles = `
@@ -290,9 +311,27 @@ const debounce = (func, delay) => {
     timeoutId = setTimeout(() => func(...args), delay);
   };
 };
+// Function to fetch user role from /profile API
+const getUserRole = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+
+    const response = await axios.get('/api/profile', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    return response.data.role || null;
+  } catch (error) {
+    console.error('Failed to fetch user role:', error);
+    return null;
+  }
+};
+
 
 // Main Component
 const Contacts = () => {
+  const [role, setRole] = useState(null); // State to store user role
   // State
   const [contacts, setContacts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -337,6 +376,11 @@ const Contacts = () => {
     setSelectedContact(contact);
   }, 200);
 
+  useEffect(() => {
+    getUserRole().then((fetchedRole) => {
+      setRole(fetchedRole);
+    });
+  }, []);
   // Handle newCompanyId from Companies.jsx
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -908,7 +952,10 @@ const companyOptions = companies.map(company => ({
   <style>{customStyles}</style>
   <div className="max-w-7xl mx-auto">
         <div className="bg-white shadow-lg rounded-xl p-4 md:p-6 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6 transform transition-all duration-300 hover:shadow-xl">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 whitespace-nowrap">Contacts</h1>
+        <h1 className="text-3xl font-bold text-[#333] flex items-center">
+        <span className="material-icons-round mr-2 text-[#0056B3]">contacts</span>
+        Contacts
+      </h1>
           <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
             <div className="relative w-full sm:w-64">
               <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -935,22 +982,33 @@ const companyOptions = companies.map(company => ({
                 <FaUpload className="text-sm" />
                 <span className="whitespace-nowrap">Import</span>
               </button>
-              <button
-                onClick={handleExport}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
-              >
-                <FaDownload className="text-sm" />
-                <span className="whitespace-nowrap">Export</span>
-              </button>
+              {role !== 'User' && (
+                <button
+                  onClick={handleExport}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
+                >
+                  <FaDownload className="text-sm" />
+                  <span className="whitespace-nowrap">Export</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-        {error && (
-          <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-6 shadow-md">{error}</div>
+                {message && (
+          <MessageDisplay
+            message={message}
+            type="success"
+            onClose={() => setMessage(null)}
+          />
         )}
-        {message && (
-          <div className="bg-green-100 text-green-700 p-4 rounded-lg mb-6 shadow-md">{message}</div>
+
+        {error && (
+          <MessageDisplay
+            message={error}
+            type="error"
+            onClose={() => setError(null)}
+          />
         )}
 
         <div className="bg-white shadow-lg rounded-xl p-6 mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transform hover:shadow-xl transition-shadow duration-300">
@@ -1041,7 +1099,7 @@ const companyOptions = companies.map(company => ({
             >
               <FaUndo className="mr-2" /> Reset Filters
             </button>
-            {selectedContacts.size > 0 && (
+            {selectedContacts.size > 0   && role !== 'User' && (
               <>
                 <button
                   onClick={handleDeleteSelected}
@@ -1144,22 +1202,31 @@ const companyOptions = companies.map(company => ({
                     <td className="px-6 py-4 text-gray-700">{contact.email}</td>
                     <td className="px-6 py-4 text-gray-700">{contact.phone || 'N/A'}</td>
                     <td className="px-6 py-4">
-                      {contact.owner ? (
-                        <div className="flex items-center space-x-4">
-                          {contact.owner.profilePhotoUrl ? (
-                            <img src={`${axios.defaults.baseURL}${contact.owner.profilePhotoUrl}`} alt={contact.owner.username} className="w-10 h-10 rounded-full shadow-md" />
-                          ) : (
+                    {contact.owner ? (
+                      <div className="flex items-center space-x-4">
+                        {contact.owner.profilePhotoUrl ? (
+                          <img
+                            src={`${axios.defaults.baseURL}${contact.owner.profilePhotoUrl}`}
+                            alt={contact.owner.username}
+                            className="w-10 h-10 rounded-full shadow-md"
+                          />
+                        ) : (
+                          <div className="flex-none">
                             <div
-                              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-md"
-                              style={{ backgroundColor: getRandomColor(), backgroundImage: 'linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.3))' }}
+                              className="!w-10 !h-10 min-w-10 min-h-10 aspect-square rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden text-lg"
+                              style={{
+                                backgroundColor: getRandomColor(),
+                                backgroundImage: 'linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.3))',
+                              }}
                             >
                               {getInitials(contact.owner.username)}
                             </div>
-                          )}
-                          <span className="text-gray-700">{contact.owner.username}</span>
-                        </div>
-                      ) : 'Unassigned'}
-                    </td>
+                          </div>
+                        )}
+                        <span className="text-gray-700">{contact.owner.username}</span>
+                      </div>
+                    ) : 'Unassigned'}
+                  </td>
                     <td className="px-6 py-4 text-gray-700">{contact.status || 'N/A'}</td>
                     <td className="px-6 py-4 text-gray-700">{contact.company?.name || 'N/A'}</td>
                     <td className="px-6 py-4 text-gray-700">{new Date(contact.createdAt).toLocaleDateString()}</td>
@@ -1236,11 +1303,11 @@ const companyOptions = companies.map(company => ({
                         <img
                           src={`${axios.defaults.baseURL}${selectedContact.owner.profilePhotoUrl}`}
                           alt={selectedContact.owner.username}
-                          className="w-6 h-6 rounded-full shadow-md"
+                          className="w-8 h-8 rounded-full shadow-md"
                         />
                       ) : (
                         <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold shadow-md"
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md"
                           style={{
                             backgroundColor: getRandomColor(),
                             backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.2), rgba(0,0,0,0.1))',
@@ -1298,12 +1365,14 @@ const companyOptions = companies.map(company => ({
               >
                 <FaEdit className="mr-2" /> Edit
               </button>
+              {role !== 'User' && (
               <button
                 onClick={() => handleDelete(selectedContact.id)}
                 className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-all duration-300 shadow-md flex items-center justify-center"
               >
                 <FaTrash className="mr-2" /> Delete
               </button>
+              )}
               <button
                 onClick={handleCreateOpportunity}
                 className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-all duration-300 shadow-md flex items-center justify-center"
@@ -1452,7 +1521,21 @@ const companyOptions = companies.map(company => ({
       >
         ✕
       </button>
-      <h2 className="text-2xl font-bold mb-6 text-gray-900">{editingContactId ? 'Edit Contact' : 'Create Contact'}</h2>
+      <div className="flex justify-between items-center mb-6">
+      <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+        {editingContactId ? (
+          <>
+            <FaEdit className="mr-2 text-blue-600" />
+            Edit Contact
+          </>
+        ) : (
+          <>
+            <FaPlus className="mr-2 text-blue-600" />
+            Create Contact
+          </>
+        )}
+      </h2>
+    </div>
       <form onSubmit={handleSubmit} className="form-grid">
         <div>
           <label className="form-label">Name</label>

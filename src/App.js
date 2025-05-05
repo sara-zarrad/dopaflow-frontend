@@ -356,7 +356,7 @@ function App() {
       <div className="h-screen">
         {!isLoggedIn ? (
           <>
-            <div className="flex justify-between items-center p-4">
+            <div className="flex justify-between items-center p-3">
               <img src={logo} alt="Logo" className="w-42 h-16 object-contain rounded-lg shadow-md" />
               <div className="space-x-4">
                 <NavLink to="/login" className="text-blue-600 py-2 px-6 rounded-lg font-medium border-2 border-blue-600 hover:bg-blue-600 hover:text-white transition-all duration-300">

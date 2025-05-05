@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FaUser, FaEnvelope, FaLock, FaShieldAlt, FaHistory, FaQrcode, FaKey, FaCheckCircle, FaTimesCircle, FaCamera, FaImages, FaCommentAlt, FaBirthdayCake, FaUserTag, FaUserCheck } from 'react-icons/fa';
+import { FaUser, FaEnvelope, FaLock, FaShieldAlt, FaTimes,FaCheck ,FaExclamationCircle,FaHistory, FaQrcode, FaKey, FaCheckCircle, FaTimesCircle, FaCamera, FaImages, FaCommentAlt, FaBirthdayCake, FaUserTag, FaUserCheck } from 'react-icons/fa';
 import { QRCodeSVG } from 'qrcode.react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ReactCrop from 'react-image-crop';
@@ -125,7 +125,7 @@ const Profile = ({ setUser }) => {
         currentPassword: '',
         newPassword: '',
         confirmNewPassword: '',
-        birthdate: response.data.birthdate ? new Date(response.data.birthdate).toISOString().split('T')[0] : '',
+        birthdate: response.data.birthdate || '', // Keep as string
         role: response.data.role || 'N/A',
         status: response.data.status || 'N/A',
         verified: response.data.verified || false,
@@ -451,12 +451,13 @@ const Profile = ({ setUser }) => {
     }
   };
 
-  const clearMessage = () => {
-    setTimeout(() => {
-      setMessage('');
-      setError('');
-    }, 3000);
-  };
+{/* Update clearMessage function (replace the entire function) */}
+const clearMessage = () => {
+  setTimeout(() => {
+    setMessage('');
+    setError('');
+  }, 5000);
+};
 
   const lastLoginInfo = profile.loginHistory.length > 0 ? profile.loginHistory[profile.loginHistory.length - 1] : null;
 
@@ -497,6 +498,27 @@ const Profile = ({ setUser }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showCropModal]);
 
+  const MessageDisplay = ({ message, type, onClose }) => {
+    if (!message) return null;
+  
+    const bgColor = type === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-red-100 border-red-500 text-red-700';
+  
+    return (
+      <div className={`fixed top-5 left-1/2 transform -translate-x-1/2 mt-5 p-4 ${bgColor} border-l-4 rounded-xl shadow-lg flex items-center justify-between animate-slideIn max-w-3xl w-full z-[1000]`}>
+        <div className="flex items-center">
+          {type === 'success' ? <FaCheck className="text-xl mr-3" /> : <FaExclamationCircle className="text-xl mr-3" />}
+          <span className="text-base">{message}</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 hover:bg-opacity-20 rounded-xl transition-colors duration-200"
+        >
+          <FaTimes className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-8 rounded-[10px] border">
       <div className="max-w-6xl mx-auto">
@@ -517,15 +539,19 @@ const Profile = ({ setUser }) => {
               </div>
 
               {error && (
-                <div className="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-r-lg animate-fade-in">
-                  {error}
-                </div>
-              )}
-              {message && (
-                <div className="mb-6 bg-green-50 border-l-4 border-green-500 text-green-700 p-4 rounded-r-lg animate-fade-in">
-                  {message}
-                </div>
-              )}
+              <MessageDisplay
+                message={error}
+                type="error"
+                onClose={() => setError('')}
+              />
+            )}
+            {message && (
+              <MessageDisplay
+                message={message}
+                type="success"
+                onClose={() => setMessage('')}
+              />
+            )}
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1">
@@ -609,7 +635,6 @@ const Profile = ({ setUser }) => {
                           />
                         </div>
                       </div>
-
                       <div className="relative">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                         <div className="flex items-center border border-gray-200 rounded-lg bg-gray-100">
@@ -672,8 +697,20 @@ const Profile = ({ setUser }) => {
                 <FaImages className="text-[#0056B3] text-2xl" />
                 <span>Select Avatar</span>
               </h2>
-              {error && <div className="mb-6 bg-red-100 text-red-700 p-4 rounded-lg shadow-md">{error}</div>}
-              {message && <div className="mb-6 bg-green-100 text-green-700 p-4 rounded-lg shadow-md">{message}</div>}
+              {error && (
+                  <MessageDisplay
+                    message={error}
+                    type="error"
+                    onClose={() => setError('')}
+                  />
+                )}
+                {message && (
+                  <MessageDisplay
+                    message={message}
+                    type="success"
+                    onClose={() => setMessage('')}
+                  />
+                )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 {defaultAvatars.map((avatar, index) => (
                   <button
@@ -706,8 +743,20 @@ const Profile = ({ setUser }) => {
                   <span>View History</span>
                 </button>
               </div>
-              {error && <div className="mb-6 bg-red-100 text-red-700 p-4 rounded-lg shadow-md">{error}</div>}
-              {message && <div className="mb-6 bg-green-100 text-green-700 p-4 rounded-lg shadow-md">{message}</div>}
+              {error && (
+              <MessageDisplay
+                message={error}
+                type="error"
+                onClose={() => setError('')}
+              />
+            )}
+            {message && (
+              <MessageDisplay
+                message={message}
+                type="success"
+                onClose={() => setMessage('')}
+              />
+            )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
                   <h3 className="text-xl font-semibold text-blue-800 mb-4">Recent Activity</h3>
@@ -798,8 +847,20 @@ const Profile = ({ setUser }) => {
                 <FaQrcode className="text-[#0056B3] text-2xl" />
                 <span>Two-Factor Authentication</span>
               </h2>
-              {error && <div className="mb-6 bg-red-100 text-red-700 p-4 rounded-lg shadow-md">{error}</div>}
-              {message && <div className="mb-6 bg-green-100 text-green-700 p-4 rounded-lg shadow-md">{message}</div>}
+              {error && (
+                <MessageDisplay
+                  message={error}
+                  type="error"
+                  onClose={() => setError('')}
+                />
+              )}
+              {message && (
+                <MessageDisplay
+                  message={message}
+                  type="success"
+                  onClose={() => setMessage('')}
+                />
+              )}
               <div className="max-w-lg mx-auto text-center">
                 {profile.twoFactorEnabled ? (
                   isDisabling2FA ? (
@@ -1076,4 +1137,10 @@ const Profile = ({ setUser }) => {
   );
 };
 
+<style jsx>{`
+  @keyframes slideIn {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+`}</style>
 export default Profile;

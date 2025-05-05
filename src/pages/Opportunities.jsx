@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  FaPlus, FaEdit, FaTrash, FaChartLine, FaSearch, FaFilter, FaArrowUp, FaArrowDown, FaTimes, FaSpinner, FaExpand, FaSortUp, FaSortDown, FaUndo, FaCheck,
+  FaPlus, FaEdit, FaTrash, FaChartLine, FaSearch, FaFilter, FaExclamationCircle ,FaArrowUp, FaArrowDown, FaTimes, FaSpinner, FaExpand, FaSortUp, FaSortDown, FaUndo, FaCheck,
   FaTag, FaUser, FaList, FaChartBar, FaCalendarAlt
 } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -81,6 +81,27 @@ const Opportunities = () => {
 
   const debouncedSetShowForm = useMemo(() => debounce((value) => setShowForm(value), 200), []);
 
+  const MessageDisplay = ({ message, type, onClose }) => {
+    if (!message) return null;
+  
+    const bgColor = type === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-red-100 border-red-500 text-red-700';
+  
+    return (
+      <div className={`fixed top-5 left-1/2 transform -translate-x-1/2 mt-5 p-4 ${bgColor} border-l-4 rounded-xl shadow-lg flex items-center justify-between animate-slideIn max-w-3xl w-full z-[1000]`}>
+        <div className="flex items-center">
+          {type === 'success' ? <FaCheck className="text-xl mr-3" /> : <FaExclamationCircle className="text-xl mr-3" />}
+          <span className="text-base">{message}</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 hover:bg-opacity-20 rounded-xl transition-colors duration-200"
+        >
+          <FaTimes className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  };
+
   // Handle click outside to close form
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -107,6 +128,21 @@ const Opportunities = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    let timer;
+    if (successMessage) {
+      timer = setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
+    }
+    if (errorMessage) {
+      timer = setTimeout(() => {
+        setErrorMessage(null);
+      }, 5000);
+    }
+    return () => clearTimeout(timer);
+  }, [successMessage, errorMessage]);
+
   const debouncedFetchContacts = useMemo(
     () => debounce((query) => {
       if (!query) {
@@ -120,6 +156,7 @@ const Opportunities = () => {
     }, 300),
     [contacts]
   );
+
 
   useEffect(() => {
     fetchInitialData();
@@ -523,7 +560,7 @@ const Opportunities = () => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300">
         <div className={`bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
-          <div className={`flex items-center justify-center w-16 h-16 rounded-full ${bgColor} mx-auto mb-4`}>
+          <div className={`flex items-center justify-center w-16 h-16 rounded-xl ${bgColor} mx-auto mb-4`}>
             {icon}
           </div>
           <h3 className={`text-2xl font-bold text-center ${textColor} mb-2`}>{title}</h3>
@@ -531,14 +568,14 @@ const Opportunities = () => {
           <div className="flex justify-center space-x-4">
             <button
               onClick={onClose}
-              className="px-6 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+              className="px-6 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-xl hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               onClick={onConfirm}
-              className={`px-6 py-2 ${buttonColor} text-white rounded-full shadow-md transition-all duration-300 flex items-center`}
+              className={`px-6 py-2 ${buttonColor} text-white rounded-xl shadow-md transition-all duration-300 flex items-center`}
               disabled={loading}
             >
               {loading && <FaSpinner className="animate-spin mr-2" />}
@@ -554,8 +591,11 @@ const Opportunities = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-8 font-sans antialiased rounded-[12px] border border-gray-200">
       <header className="flex flex-col sm:flex-row justify-between items-center mb-8 sm:mb-10">
         <div className="mb-4 sm:mb-0">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">Sales Pipeline</h1>
-          <p className="text-gray-600 mt-1 text-sm font-medium">Track and manage your opportunities with ease</p>
+        <h1 className="text-3xl font-bold text-[#333] flex items-center">
+        <span className="material-icons-round mr-3 text-[#0056B3]">trending_up</span>
+        Opportunities management
+      </h1>
+          <p className="text-gray-600 mt-1 text-sm font-medium ml-10">Track and manage your opportunities with ease</p>
         </div>
         <button
           onClick={() => {
@@ -564,34 +604,26 @@ const Opportunities = () => {
             setContactSearch('');
             debouncedSetShowForm(true);
           }}
-          className="flex items-center px-4 py-2 sm:px-6 sm:py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-full shadow-lg hover:from-indigo-700 hover:to-indigo-800 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-300/50"
+          className="flex items-center px-4 py-2 sm:px-6 sm:py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl shadow-lg hover:from-indigo-700 hover:to-indigo-800 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-300/50"
         >
           <FaPlus className="mr-2" /> New Opportunity
         </button>
       </header>
+                  {successMessage && (
+              <MessageDisplay
+                message={successMessage}
+                type="success"
+                onClose={() => setSuccessMessage(null)}
+              />
+            )}
 
-      {/* Success Message */}
-      {successMessage && (
-        <div className="mb-6 px-4 sm:px-6 py-4 bg-green-50 text-green-700 rounded-lg shadow-md flex items-center space-x-3 transition-all duration-300 hover:shadow-lg">
-          <FaCheck className="text-green-600" />
-          <span>{successMessage}</span>
-          <button onClick={() => setSuccessMessage(null)} className="ml-auto text-green-600 hover:text-green-800">
-            <FaTimes />
-          </button>
-        </div>
-      )}
-
-      {/* Error Message */}
-      {errorMessage && (
-        <div className="mb-6 px-4 sm:px-6 py-4 bg-red-50 text-red-700 rounded-lg shadow-md flex items-center space-x-3 transition-all duration-300 hover:shadow-lg">
-          <FaTimes className="text-red-600" />
-          <span>{errorMessage}</span>
-          <button onClick={() => setErrorMessage(null)} className="ml-auto text-red-600 hover:text-red-800">
-            <FaTimes />
-          </button>
-        </div>
-      )}
-
+            {errorMessage && (
+              <MessageDisplay
+                message={errorMessage}
+                type="error"
+                onClose={() => setErrorMessage(null)}
+              />
+            )}
       {/* Stats Section */}
       <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-10">
         <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md border border-gray-100/50 transition-all duration-300 transform hover:scale-105 hover:shadow-xl">
@@ -761,7 +793,7 @@ const Opportunities = () => {
                 }`}
               >
                 {stage.name}
-                <span className="ml-2 bg-gray-100 text-gray-800 text-xs font-medium px-2 py-0.5 rounded-full">
+                <span className="ml-2 bg-gray-100 text-gray-800 text-xs font-medium px-2 py-0.5 rounded-xl">
                   {stage.opportunities.length}
                 </span>
                 {activeTab === stage.name && (
@@ -820,20 +852,20 @@ const Opportunities = () => {
                             <td className="px-4 py-3 text-sm text-indigo-600 font-medium">{formatCurrency(opp.value)}</td>
                             <td className="px-4 py-3 text-sm text-gray-700">{opp.contact?.name || 'None'}</td>
                             <td className="px-4 py-3">
-                              <span className={`px-2 py-1 text-xs rounded-full shadow-sm ${priorityColors[opp.priority]}`}>
+                              <span className={`px-2 py-1 text-xs rounded-xl shadow-sm ${priorityColors[opp.priority]}`}>
                                 {priorityMapping[opp.priority]}
                               </span>
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center space-x-2">
-                                <div className="w-24 bg-gray-200/50 rounded-full h-2 shadow-inner">
-                                  <div className="bg-indigo-500 h-2 rounded-full transition-all duration-500 shadow-md" style={{ width: `${opp.progress}%` }} />
+                                <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
+                                  <div className="bg-indigo-500 h-2 rounded-xl transition-all duration-500 shadow-md" style={{ width: `${opp.progress}%` }} />
                                 </div>
                                 <span className="text-sm text-indigo-600">{opp.progress}%</span>
-                                <button onClick={() => handleIncrementProgress(opp.id)} className="p-1 bg-green-500 text-white rounded-full shadow-md hover:bg-green-600 transition-all duration-200">
+                                <button onClick={() => handleIncrementProgress(opp.id)} className="p-1 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200">
                                   <FaArrowUp />
                                 </button>
-                                <button onClick={() => handleDecrementProgress(opp.id)} className="p-1 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600 transition-all duration-200">
+                                <button onClick={() => handleDecrementProgress(opp.id)} className="p-1 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200">
                                   <FaArrowDown />
                                 </button>
                               </div>
@@ -870,11 +902,11 @@ const Opportunities = () => {
                               <div className="flex space-x-2">
                                 <button
                                   onClick={() => handleEdit(opp)}
-                                  className="p-2 text-indigo-600 rounded-full shadow-md hover:bg-indigo-100 transition-all duration-200"
+                                  className="p-2 text-indigo-600 rounded-xl shadow-md hover:bg-indigo-100 transition-all duration-200"
                                 >
                                   <FaEdit />
                                 </button>
-                                <button onClick={() => handleDelete(opp.id)} className="p-2 text-red-600 rounded-full shadow-md hover:bg-red-100 transition-all duration-200">
+                                <button onClick={() => handleDelete(opp.id)} className="p-2 text-red-600 rounded-xl shadow-md hover:bg-red-100 transition-all duration-200">
                                   <FaTrash />
                                 </button>
                               </div>
@@ -898,7 +930,7 @@ const Opportunities = () => {
             >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-bold text-gray-900 tracking-tight">{stage.name}</h2>
-                <span className="bg-gray-900 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md">
+                <span className="bg-gray-900 text-white text-xs font-semibold px-3 py-1 rounded-xl shadow-md">
                   {stage.opportunities.length}
                 </span>
               </div>
@@ -914,7 +946,7 @@ const Opportunities = () => {
                       </h3>
                       <button
                         onClick={() => setExpandedOpportunityId(opp.id)}
-                        className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-all duration-200"
+                        className="p-2 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200"
                       >
                         <FaExpand size={16} className="text-gray-600" />
                       </button>
@@ -940,7 +972,7 @@ const Opportunities = () => {
                     <div className="flex items-center mb-3">
                       <span className="text-sm text-gray-700 font-semibold mr-2">Priority:</span>
                       <span
-                        className={`px-3 py-1 text-xs font-semibold rounded-full shadow-sm ${priorityColors[opp.priority]}`}
+                        className={`px-3 py-1 text-xs font-semibold rounded-xl shadow-sm ${priorityColors[opp.priority]}`}
                       >
                         {priorityMapping[opp.priority]}
                       </span>
@@ -948,9 +980,9 @@ const Opportunities = () => {
                     <div className="flex items-center mb-3">
                       <span className="text-sm text-gray-700 font-semibold mr-2">Progress:</span>
                       <div className="flex items-center space-x-2 w-full">
-                        <div className="w-full bg-gray-200 rounded-full h-2 shadow-inner overflow-hidden">
+                        <div className="w-full bg-gray-200 rounded-xl h-2 shadow-inner overflow-hidden">
                           <div
-                            className="bg-indigo-500 h-2 rounded-full transition-all duration-500 shadow-md"
+                            className="bg-indigo-500 h-2 rounded-xl transition-all duration-500 shadow-md"
                             style={{ width: `${opp.progress}%` }}
                           />
                         </div>
@@ -1000,7 +1032,7 @@ const Opportunities = () => {
           <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto border border-gray-100/50 animate-fadeIn">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Assign {preselectedContactName} to Existing Opportunity</h2>
-              <button onClick={handleBackToAssignPopup} className="p-2 text-gray-500 rounded-full shadow-md hover:text-red-600 hover:bg-red-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-300/50">
+              <button onClick={handleBackToAssignPopup} className="p-2 text-gray-500 rounded-xl shadow-md hover:text-red-600 hover:bg-red-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-300/50">
                 <FaTimes size={24} />
               </button>
             </div>
@@ -1026,6 +1058,35 @@ const Opportunities = () => {
       {showForm && formData && (
         <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300">
           <div ref={formRef} className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-100/50 animate-fadeIn">
+          <div className="flex justify-between items-center mb-6">
+  <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+    {editingOpportunityId ? (
+      <>
+        <FaEdit className="mr-2 text-blue-600" />
+        Edit Opportunity
+      </>
+    ) : (
+      <>
+        <FaPlus className="mr-2 text-blue-600" />
+        New Opportunity
+      </>
+    )}
+  </h2>
+  <button
+    onClick={() => {
+      debouncedSetShowForm(false);
+      setFormData({ id: null, title: '', value: 0, contactId: '', priority: 'MEDIUM', progress: 0, stage: 'PROSPECTION', status: 'IN_PROGRESS' });
+      setEditingOpportunityId(null);
+      setContactSearch('');
+      setPreselectedContactName('');
+      if (preselectedContactId && !editingOpportunityId) handleBackToAssignPopup();
+    }}
+    className="p-2 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors duration-200"
+  >
+    <FaTimes className="w-5 h-5" />
+  </button>
+</div>
+
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Title</label>
@@ -1104,7 +1165,8 @@ const Opportunities = () => {
                             />
                           ) : (
                             <div
-                              className="h-8 w-8 rounded-full flex items-center justify-center bg-gray-300 text-white text-xs font-bold flex-shrink-0"
+                              className="h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                              style={{ backgroundColor: selectedContact.photoUrl ? "transparent" : getColor() }}
                             >
                               {getInitials(selectedContact.name)}
                             </div>
@@ -1261,14 +1323,14 @@ const Opportunities = () => {
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, progress: Math.min(100, formData.progress + 10) })}
-                    className="p-2 bg-green-500 text-white rounded-full shadow-md hover:bg-green-600 transition-all duration-200"
+                    className="p-2 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200"
                   >
                     <FaArrowUp />
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, progress: Math.max(0, formData.progress - 10) })}
-                    className="p-2 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600 transition-all duration-200"
+                    className="p-2 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200"
                   >
                     <FaArrowDown />
                   </button>
@@ -1322,13 +1384,13 @@ const Opportunities = () => {
                     setPreselectedContactName('');
                     if (preselectedContactId && !editingOpportunityId) handleBackToAssignPopup();
                   }}
-                  className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+                  className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-xl hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
                 >
                   {editingOpportunityId ? 'Update' : 'Create'}
                 </button>
@@ -1436,7 +1498,7 @@ const OpportunityDetails = ({ opportunity, onClose, onEdit, onDelete, onChangeSt
         </h2>
         <button
           onClick={onClose}
-          className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
+          className="p-2 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors duration-200"
         >
           <FaTimes className="w-5 h-5" />
         </button>
@@ -1453,7 +1515,7 @@ const OpportunityDetails = ({ opportunity, onClose, onEdit, onDelete, onChangeSt
           <FaTag className="text-gray-400" />
           <div>
             <span className="font-medium">Priority: </span>
-            <span className={`px-2 py-1 text-xs font-medium rounded-full ${priorityColors[opportunity.priority]}`}>
+            <span className={`px-2 py-1 text-xs font-medium rounded-xl ${priorityColors[opportunity.priority]}`}>
               {priorityMapping[opportunity.priority]}
             </span>
           </div>
@@ -1504,22 +1566,22 @@ const OpportunityDetails = ({ opportunity, onClose, onEdit, onDelete, onChangeSt
           <FaChartBar className="text-gray-400" />
           <div className="flex items-center space-x-2">
             <span className="font-medium">Progress: </span>
-            <div className="w-32 bg-gray-200 rounded-full h-2 shadow-inner">
+            <div className="w-32 bg-gray-200 rounded-xl h-2 shadow-inner">
               <div
-                className="bg-indigo-500 h-2 rounded-full transition-all duration-500 shadow-md"
+                className="bg-indigo-500 h-2 rounded-xl transition-all duration-500 shadow-md"
                 style={{ width: `${opportunity.progress}%` }}
               />
             </div>
             <span className="text-sm text-indigo-600">{opportunity.progress}%</span>
             <button
               onClick={onIncrementProgress}
-              className="p-1 bg-green-500 text-white rounded-full shadow-md hover:bg-green-600 transition-all duration-200"
+              className="p-1 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200"
             >
               <FaArrowUp />
             </button>
             <button
               onClick={onDecrementProgress}
-              className="p-1 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600 transition-all duration-200"
+              className="p-1 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200"
             >
               <FaArrowDown />
             </button>

@@ -160,7 +160,7 @@ const Login = ({ setIsLoggedIn }) => {
           isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
       >
-        <div className="flex justify-center mb-6">
+        <div className="flex justify-center mb-3">
           <img src={logo_dopaflow} alt="Dopaflow Logo" className="h-12" />
         </div>
 

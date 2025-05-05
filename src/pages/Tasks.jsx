@@ -82,7 +82,7 @@ const MessageDisplay = ({ message, type, onClose }) => {
       </div>
       <button
         onClick={onClose}
-        className="p-1 hover:bg-opacity-20 rounded-full transition-colors duration-200"
+        className="p-1 hover:bg-opacity-20 rounded-xl transition-colors duration-200"
       >
         <FaTimes className="w-4 h-4" />
       </button>
@@ -118,7 +118,7 @@ const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, l
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300">
       <div className={`bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
-        <div className={`flex items-center justify-center w-16 h-16 rounded-full ${bgColor} mx-auto mb-4`}>
+        <div className={`flex items-center justify-center w-16 h-16 rounded-xl ${bgColor} mx-auto mb-4`}>
           {icon}
         </div>
         <h3 className={`text-2xl font-bold text-center ${textColor} mb-2`}>{title}</h3>
@@ -126,14 +126,14 @@ const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, l
         <div className="flex justify-center space-x-4">
           <button
             onClick={onClose}
-            className="px-6 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+            className="px-6 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-xl hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
             disabled={loading}
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className={`px-6 py-2 ${buttonColor} text-white rounded-full shadow-md transition-all duration-300 flex items-center`}
+            className={`px-6 py-2 ${buttonColor} text-white rounded-xl shadow-md transition-all duration-300 flex items-center`}
             disabled={loading}
           >
             {loading && <FaSpinner className="animate-spin mr-2" />}
@@ -163,7 +163,7 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
           </h2>
           <button
             onClick={onClose}
-            className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
+            className="p-2 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors duration-200"
           >
             <FaTimes className="w-5 h-5" />
           </button>
@@ -173,7 +173,7 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
             <FaTag className="text-gray-400" />
             <div>
               <span className="font-medium">Priority: </span>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(task.priority)}`}>
+              <span className={`px-2 py-1 text-xs font-medium rounded-xl ${getPriorityColor(task.priority)}`}>
                 {task.priority}
               </span>
             </div>
@@ -236,7 +236,7 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
         <div className="mt-6 flex justify-end space-x-3 flex-wrap gap-2">
           <button
             onClick={() => onMove(task.id, 'Done')}
-            className="px-4 py-2 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all duration-200 flex items-center shadow-md"
+            className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 flex items-center shadow-md"
             disabled={moveLoading}
           >
             {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaCheck className="mr-2" />}
@@ -244,7 +244,7 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
           </button>
           <button
             onClick={() => onMove(task.id, 'InProgress')}
-            className="px-4 py-2 bg-yellow-600 text-white rounded-full hover:bg-yellow-700 transition-all duration-200 flex items-center shadow-md"
+            className="px-4 py-2 bg-yellow-600 text-white rounded-xl hover:bg-yellow-700 transition-all duration-200 flex items-center shadow-md"
             disabled={moveLoading}
           >
             {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaTasks className="mr-2" />}
@@ -252,7 +252,7 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
           </button>
           <button
             onClick={() => onMove(task.id, 'Cancelled')}
-            className="px-4 py-2 bg-gray-600 text-white rounded-full hover:bg-gray-700 transition-all duration-200 flex items-center shadow-md"
+            className="px-4 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 flex items-center shadow-md"
             disabled={moveLoading}
           >
             {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaBan className="mr-2" />}
@@ -260,14 +260,14 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
           </button>
           <button
             onClick={() => onEdit(task)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all duration-200 flex items-center shadow-md"
+            className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 flex items-center shadow-md"
           >
             <FaEdit className="mr-2" />
             Edit
           </button>
           <button
             onClick={() => onDelete(task.id, column)}
-            className="px-4 py-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-all duration-200 flex items-center shadow-md"
+            className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 flex items-center shadow-md"
             disabled={deleteLoading}
           >
             {deleteLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaTrash className="mr-2" />}
@@ -303,13 +303,13 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
           </div>
           <div className="flex items-center space-x-2">
             <span
-              className={`px-3 py-1 text-xs font-medium rounded-full shadow-sm ${getPriorityColor(task.priority)}`}
+              className={`px-3 py-1 text-xs font-medium rounded-xl shadow-sm ${getPriorityColor(task.priority)}`}
             >
               {task.priority}
             </span>
             <button
               onClick={() => setShowDetails(true)}
-              className="p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors duration-200"
+              className="p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors duration-200"
               title="View Details"
             >
               <FaExpandArrowsAlt className="w-5 h-5" />
@@ -355,7 +355,7 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
             {column !== 'Done' && (
               <button
                 onClick={() => onMove(task.id, 'Done')}
-                className="p-2 text-green-600 hover:bg-green-100 rounded-full transition-colors duration-200"
+                className="p-2 text-green-600 hover:bg-green-100 rounded-xl transition-colors duration-200"
                 title="Mark as Done"
               >
                 <FaCheck className="w-5 h-5" />
@@ -364,7 +364,7 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
             {column !== 'InProgress' && column !== 'Done' && column !== 'Cancelled' && (
               <button
                 onClick={() => onMove(task.id, 'InProgress')}
-                className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-full transition-colors duration-200"
+                className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-xl transition-colors duration-200"
                 title="Move to In Progress"
               >
                 <FaTasks className="w-5 h-5" />
@@ -373,7 +373,7 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
             {column !== 'Cancelled' && (
               <button
                 onClick={() => onMove(task.id, 'Cancelled')}
-                className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors duration-200"
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors duration-200"
                 title="Cancel Task"
               >
                 <FaBan className="w-5 h-5" />
@@ -428,7 +428,7 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
           </h2>
           <button
             onClick={onClose}
-            className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
+            className="p-2 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors duration-200"
           >
             <FaTimes className="w-5 h-5" />
           </button>
@@ -557,10 +557,10 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
                           <img
                             src={`http://localhost:8080${user.profilePhotoUrl}`}
                             alt={user.username}
-                            className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
+                            className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105 text-xs"
                           />
                         ) : (
-                          getInitials(user.username)
+                           getInitials(user.username)
                         )}
                       </div>
                       <span>{user.username}</span>
@@ -599,14 +599,14 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+              className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-xl hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
               disabled={loading}
             >
               {loading && <FaSpinner className="animate-spin mr-2" />}
@@ -651,7 +651,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
           </h2>
           <button
             onClick={onClose}
-            className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors duration-200"
+            className="p-2 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors duration-200"
           >
             <FaTimes className="w-5 h-5" />
           </button>
@@ -822,14 +822,14 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
+              className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-xl hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
               disabled={loading}
             >
               {loading && <FaSpinner className="animate-spin mr-2" />}
@@ -1091,9 +1091,10 @@ const Tasks = () => {
       />
 
       <header className="flex flex-col sm:flex-row justify-between items-center mb-12 max-w-6xl mx-auto gap-4">
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-800 flex items-center">
-          Tasks
-        </h1>
+      <h1 className="text-3xl font-bold text-[#333] flex items-center">
+        <span className="material-icons-round mr-2 text-[#0056B3]">task</span>
+        Tasks Management
+      </h1>
         <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
           <div className="relative w-full sm:w-64">
             <input
@@ -1101,13 +1102,13 @@ const Tasks = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search tasks by title..."
-              className="w-full px-4 py-3 pl-10 bg-white border border-gray-200 rounded-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-3 pl-10 bg-white border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             />
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           </div>
           <button
             onClick={() => setShowAddTaskModal(true)}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 flex items-center shadow-lg transition-all duration-300 transform hover:scale-105"
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 flex items-center shadow-lg transition-all duration-300 transform hover:scale-105"
             disabled={!currentUser}
           >
             <FaPlus className="mr-2" /> New Task
@@ -1115,7 +1116,7 @@ const Tasks = () => {
           <div className="relative">
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className="px-6 py-3 bg-white text-gray-700 rounded-full flex items-center shadow-lg hover:bg-gray-50 transition-all duration-300 transform hover:scale-105 border border-gray-200"
+              className="px-6 py-3 bg-white text-gray-700 rounded-xl flex items-center shadow-lg hover:bg-gray-50 transition-all duration-300 transform hover:scale-105 border border-gray-200"
             >
               <FaFilter className="mr-2" /> Filter
             </button>
@@ -1148,7 +1149,7 @@ const Tasks = () => {
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-gray-800">{column}</h3>
-                <span className="px-3 py-1 bg-gray-100 text-gray-600 text-sm font-medium rounded-full shadow-sm">
+                <span className="px-3 py-1 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl shadow-sm">
                   {filteredList.length} task{filteredList.length !== 1 ? 's' : ''}
                 </span>
               </div>
