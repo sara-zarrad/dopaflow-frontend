@@ -1492,7 +1492,7 @@ const companyOptions = companies.map(company => ({
                   <option value="csv">CSV</option>
                   <option value="excel">Excel (.xlsx)</option>
                 </select>
-                <div className="flex justify-end space-x-4">
+                <div className="flex justify-end space-x-4 pt-12">
                   <button
                     onClick={() => setShowExportModal(false)}
                     className="px-4 py-2 bg-gray-200 rounded-xl hover:bg-gray-300 text-gray-800 font-semibold transition-colors duration-200 shadow-md hover:shadow-lg"

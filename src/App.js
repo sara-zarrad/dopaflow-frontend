@@ -41,7 +41,7 @@ const getInitials = (name = '') => {
 };
 
 const getRandomColor = () => {
-  const colors = ['#FF6633', '#FFB399', '#FF33FF', '#00B3E6', '#E6B333', '#3366E6'];
+  const colors = ['#0056B3'];
   return colors[Math.floor(Math.random() * colors.length)];
 };
 

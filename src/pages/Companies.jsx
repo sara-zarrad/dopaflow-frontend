@@ -364,6 +364,7 @@ const Companies = () => {
         params = { ...baseParams };
         if (filters.status === 'Active' || filters.status === 'Inactive') params.status = filters.status;
         if (filters.owner === 'unassigned') params.unassignedOnly = true;
+        if (filters.owner === 'owners') params.assignedOnly = true;
         else if (filters.owner !== 'all' && filters.owner?.id) params.ownerId = filters.owner.id;
         break;
       default:
@@ -697,7 +698,8 @@ const Companies = () => {
   };
 
   const ownerOptions = [
-    { value: 'all', label: 'All Owners' },
+    { value: 'all', label: 'All Companies' },
+    { value: 'owners', label: 'Owners only' },
     { value: 'unassigned', label: 'Unassigned' },
     ...users.map(user => ({
       value: user.id,
@@ -1304,6 +1306,7 @@ const Companies = () => {
                   <option value="csv">CSV</option>
                   <option value="excel">Excel (.xlsx)</option>
                 </select>
+                
                 <div className="flex justify-end space-x-4">
                   <button
                     onClick={() => setShowExportModal(false)}

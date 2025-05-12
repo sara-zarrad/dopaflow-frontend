@@ -182,17 +182,22 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
             <FaCalendarAlt className="text-gray-400" />
             <span>
               <span className="font-medium">Deadline: </span>
-              {new Date(task.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+              {new Date(task.deadline).toLocaleString('en-GB', { 
+                timeZone: 'Europe/London', // GMT+1 during BST, adjust as needed
+                day: 'numeric', 
+                month: 'long', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
             </span>
           </div>
           <div className="flex items-center space-x-3">
             <FaUser className="text-gray-400" />
             <div className="flex items-center space-x-2">
-
-              
-                <span className="font-medium">Assigned To: </span>
-                <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden "
+              <span className="font-medium">Assigned To: </span>
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden"
                 style={{ backgroundColor: assignedUser?.profilePhotoUrl ? 'transparent' : getColor() }}
               >
                 {assignedUser?.profilePhotoUrl ? (
@@ -204,12 +209,10 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
                 ) : (
                   getInitials(assignedUser?.username || 'Unassigned')
                 )}
-                
               </div>
-              <span className=' font-semibold'>
-              {task.assignedUserUsername || 'Unassigned'}
+              <span className='font-semibold'>
+                {task.assignedUserUsername || 'Unassigned'}
               </span>
-             
             </div>
           </div>
           <div className="flex items-center space-x-3">
@@ -293,12 +296,11 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
       >
         <div className="flex justify-between items-start mb-3">
           <div className="flex-1 pr-4">
-            <h4  className={`relative group text-lg font-semibold text-gray-800 max-w-[8ch] truncate ${column === 'Cancelled' ? 'line-through' : ''}`}>
+            <h4 className={`relative group text-lg font-semibold text-gray-800 max-w-[8ch] truncate ${column === 'Cancelled' ? 'line-through' : ''}`}>
               {task.title.length > 8 ? task.title.slice(0, 8) + "..." : task.title}
               <small className="absolute left-0 top-full mt-1 w-max max-w-xs bg-gray-800 text-white text-xs p-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                 {task.title}
               </small>
-              
             </h4>
           </div>
           <div className="flex items-center space-x-2">
@@ -319,10 +321,17 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
         <div className="space-y-2 text-sm text-gray-500 flex-1">
           <div className="flex items-center space-x-2">
             <FaCalendarAlt className="text-gray-400" />
-            <span>{new Date(task.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+            <span>{new Date(task.deadline).toLocaleString('en-GB', { 
+              timeZone: 'Europe/London', // GMT+1 during BST, adjust as needed
+              day: 'numeric', 
+              month: 'long', 
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}</span>
           </div>
           <div className="flex items-center space-x-2">
-          <FaUser className="text-gray-400" />
+            <FaUser className="text-gray-400" />
             <div
               className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden"
               style={{ backgroundColor: assignedUser?.profilePhotoUrl ? 'transparent' : getColor() }}
@@ -390,8 +399,8 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
         onMove={onMove}
         onEdit={onEdit}
         onDelete={onDelete}
-        moveLoading={false} // Controlled by parent
-        deleteLoading={false} // Controlled by parent
+        moveLoading={false}
+        deleteLoading={false}
         users={users}
       />
     </>
@@ -399,10 +408,21 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
 };
 
 // Add Task Modal Component
-const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = [], opportunities = [], loading }) => {
+const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = [], opportunities = [], loading, currentUser }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [search, setSearch] = useState("");
   const [filteredUsers, setFilteredUsers] = useState(users);
+  const [errorMessage, setErrorMessage] = useState(null);
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const minDate = tomorrow.toISOString().slice(0, 16);
+
+  useEffect(() => {
+    if (currentUser?.role === "User") {
+      setNewTask(prev => ({ ...prev, assignedUserId: currentUser.id }));
+    }
+  }, [currentUser, setNewTask]);
 
   const handleSearch = (e) => {
     const query = e.target.value;
@@ -413,6 +433,27 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
       )
     );
   };
+
+  const validateForm = () => {
+    if (!newTask.opportunityId) {
+      setErrorMessage("Please select an opportunity.");
+      return false;
+    }
+    if (!newTask.assignedUserId) {
+      setErrorMessage("Please assign a user to the task.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    setErrorMessage(null);
+    onSubmit(e);
+  };
+
+  const isRegularUser = currentUser?.role === "User";
 
   return (
     <div
@@ -433,7 +474,13 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
             <FaTimes className="w-5 h-5" />
           </button>
         </div>
-        <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {errorMessage && (
+          <div className="mb-4 p-3 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-xl flex items-center">
+            <FaExclamationCircle className="text-xl mr-3" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700">Title</label>
             <input
@@ -452,6 +499,7 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
                 type="datetime-local"
                 value={newTask.deadline}
                 onChange={(e) => setNewTask({ ...newTask, deadline: e.target.value })}
+                min={minDate}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pl-10"
                 required
               />
@@ -487,88 +535,114 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
           </div>
           <div className="space-y-1 relative">
             <label className="block text-sm font-medium text-gray-700">Assigned To</label>
-            <div
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 cursor-pointer"
-              onClick={() => setShowDropdown(!showDropdown)}
-            >
-              {newTask.assignedUserId ? (
-                users
-                  .filter((user) => user.id === newTask.assignedUserId)
-                  .map((user) => (
-                    <div key={user.id} className="flex items-center space-x-3">
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
-                        style={{
-                          backgroundColor: user.profilePhotoUrl ? "transparent" : getColor(),
-                        }}
-                      >
-                        {user.profilePhotoUrl ? (
-                          <img
-                            src={`http://localhost:8080${user.profilePhotoUrl}`}
-                            alt={user.username}
-                            className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
-                          />
-                        ) : (
-                          getInitials(user.username)
-                        )}
-                      </div>
-                      <span>{user.username}</span>
-                    </div>
-                  ))
+            {currentUser ? (
+              isRegularUser ? (
+                <div
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 opacity-70 cursor-not-allowed"
+                >
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
+                    style={{ backgroundColor: currentUser.profilePhotoUrl ? 'transparent' : getColor() }}
+                  >
+                    {currentUser.profilePhotoUrl ? (
+                      <img
+                        src={`http://localhost:8080${currentUser.profilePhotoUrl}`}
+                        alt={currentUser.username}
+                        className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover"
+                      />
+                    ) : (
+                      getInitials(currentUser.username)
+                    )}
+                  </div>
+                  <span>{currentUser.username}</span>
+                </div>
               ) : (
-                <span>Select a user</span>
-              )}
-              <svg
-                className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${showDropdown ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-              </svg>
-            </div>
-            {showDropdown && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                <input
-                  type="text"
-                  value={search}
-                  onChange={handleSearch}
-                  className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  placeholder="Search users..."
-                />
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
-                    <div
-                      key={user.id}
-                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center space-x-3 min-w-0"
-                      onClick={() => {
-                        setNewTask({ ...newTask, assignedUserId: user.id });
-                        setShowDropdown(false);
-                      }}
+                <>
+                  <div
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 cursor-pointer"
+                    onClick={() => setShowDropdown(!showDropdown)}
+                  >
+                    {newTask.assignedUserId ? (
+                      users
+                        .filter((user) => user.id === newTask.assignedUserId)
+                        .map((user) => (
+                          <div key={user.id} className="flex items-center space-x-3">
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
+                              style={{ backgroundColor: user.profilePhotoUrl ? 'transparent' : getColor() }}
+                            >
+                              {user.profilePhotoUrl ? (
+                                <img
+                                  src={`http://localhost:8080${user.profilePhotoUrl}`}
+                                  alt={user.username}
+                                  className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
+                                />
+                              ) : (
+                                getInitials(user.username)
+                              )}
+                            </div>
+                            <span>{user.username}</span>
+                          </div>
+                        ))
+                    ) : (
+                      <span>Select a user</span>
+                    )}
+                    <svg
+                      className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${showDropdown ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
                     >
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
-                        style={{
-                          backgroundColor: user.profilePhotoUrl ? "transparent" : getColor(),
-                        }}
-                      >
-                        {user.profilePhotoUrl ? (
-                          <img
-                            src={`http://localhost:8080${user.profilePhotoUrl}`}
-                            alt={user.username}
-                            className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105 text-xs"
-                          />
-                        ) : (
-                           getInitials(user.username)
-                        )}
-                      </div>
-                      <span>{user.username}</span>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                  </div>
+                  {showDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <input
+                        type="text"
+                        value={search}
+                        onChange={handleSearch}
+                        className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        placeholder="Search users..."
+                      />
+                      {filteredUsers.length > 0 ? (
+                        filteredUsers.map((user) => (
+                          <div
+                            key={user.id}
+                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center space-x-3 min-w-0"
+                            onClick={() => {
+                              setNewTask({ ...newTask, assignedUserId: user.id });
+                              setShowDropdown(false);
+                            }}
+                          >
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
+                              style={{ backgroundColor: user.profilePhotoUrl ? 'transparent' : getColor() }}
+                            >
+                              {user.profilePhotoUrl ? (
+                                <img
+                                  src={`http://localhost:8080${user.profilePhotoUrl}`}
+                                  alt={user.username}
+                                  className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
+                                />
+                              ) : (
+                                getInitials(user.username)
+                              )}
+                            </div>
+                            <span>{user.username}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-2 text-gray-500">No users found</div>
+                      )}
                     </div>
-                  ))
-                ) : (
-                  <div className="px-4 py-2 text-gray-500">No users found</div>
-                )}
+                  )}
+                </>
+              )
+            ) : (
+              <div className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 opacity-70 cursor-not-allowed">
+                <span>Loading user...</span>
               </div>
             )}
           </div>
@@ -578,6 +652,7 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
               value={newTask.opportunityId}
               onChange={(e) => setNewTask({ ...newTask, opportunityId: e.target.value })}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              required
             >
               <option value="">Select an opportunity</option>
               {opportunities.map(opportunity => (
@@ -620,10 +695,21 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
 };
 
 // Edit Task Modal Component
-const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users = [], opportunities = [], loading }) => {
+const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users = [], opportunities = [], loading, currentUser }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [search, setSearch] = useState("");
   const [filteredUsers, setFilteredUsers] = useState(users);
+  const [errorMessage, setErrorMessage] = useState(null);
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const minDate = tomorrow.toISOString().slice(0, 16);
+
+  useEffect(() => {
+    if (currentUser?.role === "User" && editTask) {
+      setEditTask(prev => ({ ...prev, assignedUserId: currentUser.id }));
+    }
+  }, [currentUser, setEditTask, editTask]);
 
   const handleSearch = (e) => {
     const query = e.target.value;
@@ -635,7 +721,28 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
     );
   };
 
+  const validateForm = () => {
+    if (!editTask.opportunityId) {
+      setErrorMessage("Please select an opportunity.");
+      return false;
+    }
+    if (!editTask.assignedUserId) {
+      setErrorMessage("Please assign a user to the task.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    setErrorMessage(null);
+    onSubmit(e);
+  };
+
   if (!show || !editTask) return null;
+
+  const isRegularUser = currentUser?.role === "User";
 
   return (
     <div
@@ -656,7 +763,13 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
             <FaTimes className="w-5 h-5" />
           </button>
         </div>
-        <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {errorMessage && (
+          <div className="mb-4 p-3 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-xl flex items-center">
+            <FaExclamationCircle className="text-xl mr-3" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700">Title</label>
             <input
@@ -675,6 +788,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
                 type="datetime-local"
                 value={editTask.deadline || ''}
                 onChange={(e) => setEditTask({ ...editTask, deadline: e.target.value })}
+                min={minDate}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pl-10"
                 required
               />
@@ -710,88 +824,114 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
           </div>
           <div className="space-y-1 relative">
             <label className="block text-sm font-medium text-gray-700">Assigned To</label>
-            <div
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 cursor-pointer"
-              onClick={() => setShowDropdown(!showDropdown)}
-            >
-              {editTask.assignedUserId ? (
-                users
-                  .filter((user) => user.id === editTask.assignedUserId)
-                  .map((user) => (
-                    <div key={user.id} className="flex items-center space-x-3">
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
-                        style={{
-                          backgroundColor: user.profilePhotoUrl ? "transparent" : getColor(),
-                        }}
-                      >
-                        {user.profilePhotoUrl ? (
-                          <img
-                            src={`http://localhost:8080${user.profilePhotoUrl}`}
-                            alt={user.username}
-                            className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
-                          />
-                        ) : (
-                          getInitials(user.username)
-                        )}
-                      </div>
-                      <span>{user.username}</span>
-                    </div>
-                  ))
+            {currentUser ? (
+              isRegularUser ? (
+                <div
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 opacity-70 cursor-not-allowed"
+                >
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
+                    style={{ backgroundColor: currentUser.profilePhotoUrl ? 'transparent' : getColor() }}
+                  >
+                    {currentUser.profilePhotoUrl ? (
+                      <img
+                        src={`http://localhost:8080${currentUser.profilePhotoUrl}`}
+                        alt={currentUser.username}
+                        className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover"
+                      />
+                    ) : (
+                      getInitials(currentUser.username)
+                    )}
+                  </div>
+                  <span>{currentUser.username}</span>
+                </div>
               ) : (
-                <span>Select a user</span>
-              )}
-              <svg
-                className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${showDropdown ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-              </svg>
-            </div>
-            {showDropdown && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                <input
-                  type="text"
-                  value={search}
-                  onChange={handleSearch}
-                  className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  placeholder="Search users..."
-                />
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
-                    <div
-                      key={user.id}
-                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center space-x-3 min-w-0"
-                      onClick={() => {
-                        setEditTask({ ...editTask, assignedUserId: user.id });
-                        setShowDropdown(false);
-                      }}
+                <>
+                  <div
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 cursor-pointer"
+                    onClick={() => setShowDropdown(!showDropdown)}
+                  >
+                    {editTask.assignedUserId ? (
+                      users
+                        .filter((user) => user.id === editTask.assignedUserId)
+                        .map((user) => (
+                          <div key={user.id} className="flex items-center space-x-3">
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
+                              style={{ backgroundColor: user.profilePhotoUrl ? 'transparent' : getColor() }}
+                            >
+                              {user.profilePhotoUrl ? (
+                                <img
+                                  src={`http://localhost:8080${user.profilePhotoUrl}`}
+                                  alt={user.username}
+                                  className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
+                                />
+                              ) : (
+                                getInitials(user.username)
+                              )}
+                            </div>
+                            <span>{user.username}</span>
+                          </div>
+                        ))
+                    ) : (
+                      <span>Select a user</span>
+                    )}
+                    <svg
+                      className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${showDropdown ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
                     >
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
-                        style={{
-                          backgroundColor: user.profilePhotoUrl ? "transparent" : getColor(),
-                        }}
-                      >
-                        {user.profilePhotoUrl ? (
-                          <img
-                            src={`http://localhost:8080${user.profilePhotoUrl}`}
-                            alt={user.username}
-                            className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
-                          />
-                        ) : (
-                          getInitials(user.username)
-                        )}
-                      </div>
-                      <span>{user.username}</span>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                  </div>
+                  {showDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <input
+                        type="text"
+                        value={search}
+                        onChange={handleSearch}
+                        className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        placeholder="Search users..."
+                      />
+                      {filteredUsers.length > 0 ? (
+                        filteredUsers.map((user) => (
+                          <div
+                            key={user.id}
+                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center space-x-3 min-w-0"
+                            onClick={() => {
+                              setEditTask({ ...editTask, assignedUserId: user.id });
+                              setShowDropdown(false);
+                            }}
+                          >
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
+                              style={{ backgroundColor: user.profilePhotoUrl ? 'transparent' : getColor() }}
+                            >
+                              {user.profilePhotoUrl ? (
+                                <img
+                                  src={`http://localhost:8080${user.profilePhotoUrl}`}
+                                  alt={user.username}
+                                  className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
+                                />
+                              ) : (
+                                getInitials(user.username)
+                              )}
+                            </div>
+                            <span>{user.username}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-2 text-gray-500">No users found</div>
+                      )}
                     </div>
-                  ))
-                ) : (
-                  <div className="px-4 py-2 text-gray-500">No users found</div>
-                )}
+                  )}
+                </>
+              )
+            ) : (
+              <div className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 opacity-70 cursor-not-allowed">
+                <span>Loading user...</span>
               </div>
             )}
           </div>
@@ -801,6 +941,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
               value={editTask.opportunityId || ''}
               onChange={(e) => setEditTask({ ...editTask, opportunityId: e.target.value })}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              required
             >
               <option value="">Select an opportunity</option>
               {opportunities.map(opportunity => (
@@ -908,7 +1049,10 @@ const Tasks = () => {
     mutationFn: async (task) => {
       const response = await api.post(
         `/tasks/add?opportunityId=${task.opportunityId}&assignedUserId=${task.assignedUserId}`,
-        task
+        {
+          ...task,
+          deadline: new Date(task.deadline).toISOString() // Convert to UTC for backend
+        }
       );
       return response.data;
     },
@@ -933,7 +1077,7 @@ const Tasks = () => {
         {
           title: task.title,
           description: task.description || '',
-          deadline: task.deadline,
+          deadline: new Date(task.deadline).toISOString(), // Convert to UTC for backend
           priority: task.priority,
           typeTask: task.typeTask,
           opportunity: { id: task.opportunityId },
@@ -1043,11 +1187,20 @@ const Tasks = () => {
   };
 
   const handleEditClick = (task) => {
+    const localDeadline = new Date(task.deadline);
+    const formattedDeadline = localDeadline.toLocaleString('sv-SE', { 
+      timeZone: 'Europe/London', 
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).replace(' ', 'T');
     setEditTask({
       id: task.id,
       title: task.title,
       description: task.description || '',
-      deadline: new Date(task.deadline).toISOString().slice(0, 16),
+      deadline: formattedDeadline,
       priority: task.priority,
       typeTask: task.typeTask,
       assignedUserId: task.assignedUserId || '',
@@ -1091,10 +1244,10 @@ const Tasks = () => {
       />
 
       <header className="flex flex-col sm:flex-row justify-between items-center mb-12 max-w-6xl mx-auto gap-4">
-      <h1 className="text-3xl font-bold text-[#333] flex items-center">
-        <span className="material-icons-round mr-2 text-[#0056B3]">task</span>
-        Tasks Management
-      </h1>
+        <h1 className="text-3xl font-bold text-[#333] flex items-center">
+          <span className="material-icons-round mr-2 text-[#0056B3]">task</span>
+          Tasks Management
+        </h1>
         <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
           <div className="relative w-full sm:w-64">
             <input
@@ -1193,6 +1346,7 @@ const Tasks = () => {
         users={users || []}
         opportunities={opportunities || []}
         loading={addTaskMutation.isLoading}
+        currentUser={currentUser}
       />
       <EditTaskModal
         show={showEditTaskModal}
@@ -1203,6 +1357,7 @@ const Tasks = () => {
         users={users || []}
         opportunities={opportunities || []}
         loading={updateTaskMutation.isLoading}
+        currentUser={currentUser}
       />
       <CustomModal
         isOpen={showDeleteModal}

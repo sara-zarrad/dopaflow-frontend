@@ -296,10 +296,10 @@ const Opportunities = () => {
       let updatedOpportunity;
       if (editingOpportunityId) {
         updatedOpportunity = (await api.put(`/opportunities/update/${editingOpportunityId}`, data)).data;
-        setSuccessMessage(`Opportunity "${formData.title}" updated successfully!`);
+        setSuccessMessage(`Opportunity "${formData.title}" updated successfully`);
       } else {
         updatedOpportunity = (await api.post('/opportunities/add', data)).data;
-        setSuccessMessage(`Opportunity "${formData.title}" created successfully!`);
+        setSuccessMessage(`Opportunity "${formData.title}" created successfully`);
       }
   
       // Enrich the opportunity with full contact details from contacts state
@@ -346,7 +346,7 @@ const Opportunities = () => {
     setIsLoading(true);
     try {
       await api.delete(`/opportunities/delete/${opportunityToDelete.id}`);
-      setSuccessMessage(`Opportunity "${opportunityToDelete.title}" deleted successfully!`);
+      setSuccessMessage(`Opportunity "${opportunityToDelete.title}" deleted successfully`);
       setAllOpportunities((prev) => prev.filter((opp) => opp.id !== opportunityToDelete.id));
       applyFilters(allOpportunities.filter((opp) => opp.id !== opportunityToDelete.id));
       setShowDeleteModal(false);
@@ -1549,7 +1549,7 @@ const OpportunityDetails = ({ opportunity, onClose, onEdit, onDelete, onChangeSt
                 className="h-7 w-7 rounded-full object-cover"
               />
             ) : (
-              <div className="h-4 w-4 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">
+              <div className="h-7 w-7 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">
                 {getInitials(opportunity.owner?.username)}
               </div>
             )}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  FaEdit, FaTrash, FaUserPlus, FaSpinner, FaBan, FaUserCheck, FaCheck,
-  FaTimes, FaSearch, FaUser, FaEnvelope, FaTag, FaCalendarAlt, FaClock, FaCircle, FaExclamationTriangle, FaExclamationCircle
+  FaEdit, FaTrash, FaSpinner, FaBan, FaUserCheck, FaCheck,
+  FaTimes, FaSearch, FaUser, FaEnvelope, FaTag, FaCalendarAlt, FaClock, FaCircle, FaExclamationTriangle, FaExclamationCircle,
+  FaChevronLeft, FaChevronRight, FaUserCog
 } from 'react-icons/fa';
 import axios from 'axios';
 import LoadingIndicator from '../pages/LoadingIndicator';
@@ -17,7 +18,7 @@ const MessageDisplay = ({ message, type, onClose }) => {
   const bgColor = type === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-red-100 border-red-500 text-red-700';
 
   return (
-    <div className={`fixed top-5 left-1/2 transform -translate-x-1/2 mt-5 p-4 ${bgColor} border-l-4 rounded-xl shadow-lg flex items-center justify-between animate-slideIn max-w-3xl w-full z-[1000]`}>
+    <div className={`fixed top-5 left-1/2 transform -translate-x-1/2 mt-5 p-4 ${bgColor} border-l-4 rounded-xl shadow-lg flex items-center justify-between animate-slideIn max-w-3xl w-full sm:w-11/12 md:w-3/4 lg:w-1/2 z-[1000]`}>
       <div className="flex items-center">
         {type === 'success' ? <FaCheck className="text-xl mr-3" /> : <FaExclamationCircle className="text-xl mr-3" />}
         <span className="text-base">{message}</span>
@@ -32,7 +33,7 @@ const MessageDisplay = ({ message, type, onClose }) => {
   );
 };
 
-// Utility Functions (unchanged)
+// Utility Functions
 const getInitials = (name) => {
   if (!name) return 'UN';
   const names = name.split(' ');
@@ -46,12 +47,10 @@ const getRandomColor = () => {
 
 const formatBirthdate = (birthdate) => {
   if (!birthdate) return 'N/A';
-  // If birthdate is a string (YYYY-MM-DD), use it directly
   if (typeof birthdate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(birthdate)) {
     const date = new Date(birthdate);
     return date.toLocaleDateString('fr-FR', { year: 'numeric', month: '2-digit', day: '2-digit' });
   }
-  // If birthdate is a timestamp, convert it
   const date = new Date(Number(birthdate));
   return isNaN(date.getTime())
     ? 'N/A'
@@ -84,7 +83,7 @@ const formatDate = (date) => {
   }) : 'Never';
 };
 
-// User Profile Popup Component (unchanged)
+// User Profile Popup Component
 const UserProfilePopup = ({ user, show }) => {
   const lastActive = formatLastActive(user.lastActive, user.isOnline);
   if (!user) {
@@ -133,7 +132,7 @@ const UserProfilePopup = ({ user, show }) => {
             )}
             {!user.isOnline && lastActive && (
               <span
-                className="ml-1 text-xs font-semibold px-1 py-0.5 rounded bg-gray-100 text-gray-700 shadow-sm"
+                className="text-xs font-semibold px-1 py-0.5 rounded bg-gray-100 text-gray-700 shadow-sm"
                 style={{ color: lastActive.color }}
               >
                 {lastActive.text}
@@ -157,12 +156,12 @@ const UserProfilePopup = ({ user, show }) => {
   );
 };
 
-// User Sidebar Component (unchanged)
-const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading }) => {
+// User Sidebar Component
+const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading, currentUser }) => {
   const lastActive = formatLastActive(user?.lastActive, user?.isOnline);
   if (!user) {
     return (
-      <div className="fixed inset-y-0 right-0 w-96 bg-gradient-to-b from-gray-50 to-white rounded-l-3xl shadow-xl p-8 transform transition-all duration-300 z-50 overflow-y-auto">
+      <div className="fixed inset-y-0 right-0 w-full sm:w-96 bg-gradient-to-b from-gray-50 to-white rounded-l-xl shadow-xl p-8 transform transition-all duration-300 z-50 overflow-y-auto">
         <div className="flex justify-between items-center mb-8">
           <div className="h-8 w-1/2 bg-gray-200 animate-pulse rounded" />
           <div className="w-8 h-8 bg-gray-200 animate-pulse rounded-full" />
@@ -190,7 +189,7 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading 
     );
   }
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-gradient-to-b from-gray-50 to-white rounded-l-3xl shadow-xl p-8 transform transition-all duration-300 z-50 overflow-y-auto">
+    <div className="fixed inset-y-0 right-0 w-full sm:w-96 bg-gradient-to-b from-gray-50 to-white rounded-l-xl shadow-xl p-8 transform transition-all duration-300 z-50 overflow-y-auto">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">User Profile</h2>
         <button
@@ -223,7 +222,7 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading 
               )}
               {!user.isOnline && lastActive && (
                 <span
-                  className="ml-1 text-sm font-semibold px-2 py-1 rounded bg-gray-100 text-gray-700 shadow-sm"
+                  className="text-sm font-semibold px-2 py-1 rounded bg-gray-100 text-gray-700 shadow-sm"
                   style={{ color: lastActive.color }}
                 >
                   {lastActive.text}
@@ -267,43 +266,51 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading 
           <span className="text-sm">Verified: {user.verified ? 'Yes' : 'No'}</span>
         </div>
       </div>
-      <div className="mt-8 space-y-4">
-        <button
-          onClick={() => onEdit(user)}
-          className="w-full py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl hover:from-indigo-700 hover:to-blue-700 transition-all duration-200 flex items-center justify-center shadow-lg hover:shadow-xl"
-        >
-          <FaEdit className="mr-2 w-5 h-5" /> Edit Profile
-        </button>
-        <button
-          onClick={() => onStatusToggle(user.id)}
-          className={`w-full py-3 rounded-xl text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 ${
-            user.status === 'Active'
-              ? 'bg-gradient-to-r from-orange-600 to-yellow-600 hover:from-orange-700 hover:to-yellow-700'
-              : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
-          }`}
-          disabled={loading}
-        >
-          {loading ? (
-            <FaSpinner className="animate-spin mr-2 w-5 h-5" />
-          ) : user.status === 'Active' ? (
-            <FaBan className="mr-2 w-5 h-5" />
-          ) : (
-            <FaUserCheck className="mr-2 w-5 h-5" />
+      {currentUser && user && user.id !== currentUser.id && (
+        <div className="mt-8 space-y-4">
+          {currentUser.role === 'SuperAdmin' && (
+            <button
+              onClick={() => onEdit(user)}
+              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl hover:from-indigo-700 hover:to-blue-700 transition-all duration-200 flex items-center justify-center shadow-lg hover:shadow-xl"
+            >
+              <FaEdit className="mr-2 w-5 h-5" /> Edit Profile
+            </button>
           )}
-          {user.status === 'Active' ? 'Suspend Account' : 'Activate Account'}
-        </button>
-        <button
-          onClick={() => onDelete(user.id)}
-          className="w-full py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 flex items-center justify-center shadow-lg hover:shadow-xl"
-        >
-          <FaTrash className="mr-2 w-5 h-5" /> Delete Account
-        </button>
-      </div>
+          {(currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
+            <button
+              onClick={() => onStatusToggle(user.id)}
+              className={`w-full py-3 rounded-xl text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 ${
+                user.status === 'Active'
+                  ? 'bg-gradient-to-r from-orange-600 to-yellow-600 hover:from-orange-700 hover:to-yellow-700'
+                  : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
+              }`}
+              disabled={loading}
+            >
+              {loading ? (
+                <FaSpinner className="animate-spin mr-2 w-5 h-5" />
+              ) : user.status === 'Active' ? (
+                <FaBan className="mr-2 w-5 h-5" />
+              ) : (
+                <FaUserCheck className="mr-2 w-5 h-5" />
+              )}
+              {user.status === 'Active' ? 'Suspend Account' : 'Activate Account'}
+            </button>
+          )}
+          {currentUser.role === 'SuperAdmin' && (
+            <button
+              onClick={() => onDelete(user.id)}
+              className="w-full py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 flex items-center justify-center shadow-lg hover:shadow-xl"
+            >
+              <FaTrash className="mr-2 w-5 h-5" /> Delete Account
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
-// Custom Modal Component (unchanged)
+// Custom Modal Component
 const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, loading }) => {
   if (!isOpen) return null;
 
@@ -329,6 +336,13 @@ const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, l
           bgColor: 'bg-green-100',
           textColor: 'text-green-700',
           buttonColor: 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700',
+        };
+      case 'role_change':
+        return {
+          icon: <FaUserCog className="text-blue-500 w-8 h-8" />,
+          bgColor: 'bg-blue-100',
+          textColor: 'text-blue-700',
+          buttonColor: 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700',
         };
       default:
         return {
@@ -404,103 +418,78 @@ const Users = ({ onlineUsers = [] }) => {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
-    password: '',
     role: 'User',
+    status: 'Active',
     birthdate: '',
     verified: false,
-    status: 'Active',
     profilePhotoUrl: '',
   });
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const usersPerPage = 10;
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        const [usersResponse, currentUserResponse] = await Promise.all([
+          axios.get('/api/users/all', {
+            headers: {
+              Authorization: token ? `Bearer ${token}` : undefined,
+            },
+          }),
+          axios.get('/api/users/me', {
+            headers: {
+              Authorization: token ? `Bearer ${token}` : undefined,
+            },
+          }),
+        ]);
+
+        const updatedUsers = Array.isArray(usersResponse.data)
+          ? usersResponse.data.map((user) => {
+              const onlineUser = onlineUsers.find((ou) => ou.id === user.id) || {};
+              return {
+                ...user,
+                profilePhotoUrl: user.profilePhotoUrl ? `http://localhost:8080${user.profilePhotoUrl}` : '',
+                birthdate: user.birthdate || null,
+                lastActive: onlineUser.lastActive !== undefined ? onlineUser.lastActive : user.lastActive !== null ? Number(user.lastActive) : null,
+                isOnline: onlineUser.isOnline !== undefined ? onlineUser.isOnline : false,
+              };
+            })
+          : [];
+
+        setUsers(updatedUsers);
+        setFilteredUsers(updatedUsers);
+        setCurrentUser(currentUserResponse.data);
+        setError(null);
+      } catch (error) {
+        console.error('Fetch error:', error);
+        setError(error.response?.data?.message || 'Failed to fetch data');
+        setUsers([]);
+        setFilteredUsers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [onlineUsers]);
 
   useEffect(() => {
     let timer;
     if (message) {
-      timer = setTimeout(() => {
-        setMessage(null);
-      }, 5000);
+      timer = setTimeout(() => setMessage(null), 5000);
     }
     if (error) {
-      timer = setTimeout(() => {
-        setError(null);
-      }, 5000);
+      timer = setTimeout(() => setError(null), 5000);
     }
     return () => clearTimeout(timer);
   }, [message, error]);
 
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/api/users/all', {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : undefined,
-        },
-      });
-  
-      const updatedUsers = Array.isArray(response.data)
-        ? response.data.map((user) => {
-            const onlineUser = onlineUsers.find((ou) => ou.id === user.id) || {};
-            return {
-              ...user,
-              profilePhotoUrl: user.profilePhotoUrl ? `http://localhost:8080${user.profilePhotoUrl}` : '',
-              birthdate: user.birthdate || null,
-              lastActive: onlineUser.lastActive !== undefined ? onlineUser.lastActive : user.lastActive !== null ? Number(user.lastActive) : null,
-              isOnline: onlineUser.isOnline !== undefined ? onlineUser.isOnline : false,
-            };
-          })
-        : [];
-  
-      setUsers(updatedUsers);
-      setFilteredUsers(updatedUsers);
-      setError(null);
-    } catch (error) {
-      console.error('Fetch error:', error);
-      setError(error.response?.data?.message || 'Failed to fetch users');
-      setUsers([]);
-      setFilteredUsers([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    setUsers(prevUsers =>
-      prevUsers.map(user => {
-        const onlineUser = onlineUsers.find(ou => ou.id === user.id) || {};
-        return {
-          ...user,
-          isOnline: onlineUser.isOnline !== undefined ? onlineUser.isOnline : user.isOnline,
-          lastActive: onlineUser.lastActive !== undefined ? onlineUser.lastActive : user.lastActive,
-        };
-      })
-    );
-    setFilteredUsers(prevUsers =>
-      prevUsers.map(user => {
-        const onlineUser = onlineUsers.find(ou => ou.id === user.id) || {};
-        return {
-          ...user,
-          isOnline: onlineUser.isOnline !== undefined ? onlineUser.isOnline : user.isOnline,
-          lastActive: onlineUser.lastActive !== undefined ? onlineUser.lastActive : user.lastActive,
-        };
-      })
-    );
-    setSelectedUser(prev => {
-      if (!prev) return null;
-      const onlineUser = onlineUsers.find(ou => ou.id === prev.id) || {};
-      return {
-        ...prev,
-        isOnline: onlineUser.isOnline !== undefined ? onlineUser.isOnline : prev.isOnline,
-        lastActive: onlineUser.lastActive !== undefined ? onlineUser.lastActive : prev.lastActive,
-      };
-    });
-  }, [onlineUsers]);
-
   const handleSearch = (query) => {
     setSearchQuery(query);
+    setCurrentPage(1);
     const lowerQuery = query.toLowerCase();
     const filtered = users.filter(
       (user) =>
@@ -511,6 +500,10 @@ const Users = ({ onlineUsers = [] }) => {
   };
 
   const handleDelete = (id) => {
+    if (!currentUser || currentUser.role !== 'SuperAdmin' || id === currentUser.id) {
+      setError('You do not have permission to delete this user');
+      return;
+    }
     setModalConfig({
       isOpen: true,
       onConfirm: async () => {
@@ -526,6 +519,7 @@ const Users = ({ onlineUsers = [] }) => {
           setFilteredUsers(filteredUsers.filter((user) => user.id !== id));
           setMessage('User deleted successfully');
           setSelectedUser(null);
+          setCurrentPage(1);
         } catch (error) {
           setError(error.response?.data?.message || 'Failed to delete user');
         } finally {
@@ -540,6 +534,10 @@ const Users = ({ onlineUsers = [] }) => {
   };
 
   const handleStatusToggle = (id) => {
+    if (!currentUser || (currentUser.role !== 'SuperAdmin' && currentUser.role !== 'Admin') || id === currentUser.id) {
+      setError('You do not have permission to change this user\'s status');
+      return;
+    }
     const user = users.find((user) => user.id === id);
     const newStatus = user.status === 'Active' ? 'Suspended' : 'Active';
     const action = user.status === 'Active' ? 'suspend' : 'activate';
@@ -581,82 +579,89 @@ const Users = ({ onlineUsers = [] }) => {
     });
   };
 
+  const handleRoleChangeConfirmation = (newRole) => {
+    if (!currentUser || currentUser.role !== 'SuperAdmin' || editingUser.id === currentUser.id) {
+      setError('You do not have permission to change this user\'s role');
+      return;
+    }
+    setModalConfig({
+      isOpen: true,
+      onConfirm: () => {
+        setFormData({ ...formData, role: newRole });
+        setModalConfig({ ...modalConfig, isOpen: false });
+      },
+      title: 'Change User Role',
+      message: `Are you sure you want to change the role to ${newRole}? This may affect the user's permissions.`,
+      actionType: 'role_change',
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!currentUser || currentUser.role !== 'SuperAdmin' || editingUser.id === currentUser.id) {
+      setError('You do not have permission to edit this user');
+      return;
+    }
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const data = {
-        ...formData,
+      const editData = {
+        username: formData.username,
+        email: formData.email,
+        role: formData.role,
+        status: formData.status,
         birthdate: formData.birthdate || null,
+        verified: formData.verified,
+        profilePhotoUrl: formData.profilePhotoUrl,
       };
-      if (!editingUser) {
-        const response = await axios.post('/api/users/create', data, {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : undefined,
-          },
-        });
-        const photoUrl = response.data.profilePhotoUrl
-          ? `http://localhost:8080${response.data.profilePhotoUrl}`
-          : '';
-        const newUser = {
-          ...response.data,
-          profilePhotoUrl: photoUrl,
-          isOnline: false,
-          lastActive: response.data.lastActive !== null ? Number(response.data.lastActive) : null,
-          birthdate: response.data.birthdate || null,
-        };
-        setUsers([...users, newUser]);
-        setFilteredUsers([...filteredUsers, newUser].filter((user) =>
-          user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          user.email.toLowerCase().includes(searchQuery.toLowerCase())
-        ));
-      } else {
-        const { password, twoFactorEnabled, ...editData } = data;
-        const response = await axios.put(`/api/users/edit/${editingUser.id}`, editData, {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : undefined,
-          },
-        });
-        const photoUrl = response.data.profilePhotoUrl
-          ? `http://localhost:8080${response.data.profilePhotoUrl}`
-          : '';
-        const updatedUser = {
-          ...response.data,
-          profilePhotoUrl: photoUrl,
-          isOnline: editingUser.isOnline,
-          lastActive: response.data.lastActive !== null ? Number(response.data.lastActive) : null,
-          birthdate: response.data.birthdate || null,
-        };
-        const updatedUsers = users.map((user) =>
-          user.id === editingUser.id ? updatedUser : user
-        );
-        setUsers(updatedUsers);
-        setFilteredUsers(updatedUsers.filter((user) =>
-          user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          user.email.toLowerCase().includes(searchQuery.toLowerCase())
-        ));
-        if (selectedUser && selectedUser.id === editingUser.id) {
-          setSelectedUser(updatedUser);
-        }
+      const response = await axios.put(`/api/users/edit/${editingUser.id}`, editData, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : undefined,
+        },
+      });
+      const photoUrl = response.data.profilePhotoUrl
+        ? `http://localhost:8080${response.data.profilePhotoUrl}`
+        : '';
+      const updatedUser = {
+        ...response.data,
+        profilePhotoUrl: photoUrl,
+        isOnline: editingUser.isOnline,
+        lastActive: response.data.lastActive !== null ? Number(response.data.lastActive) : null,
+        birthdate: response.data.birthdate || null,
+      };
+      const updatedUsers = users.map((user) =>
+        user.id === editingUser.id ? updatedUser : user
+      );
+      setUsers(updatedUsers);
+      setFilteredUsers(updatedUsers.filter((user) =>
+        user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchQuery.toLowerCase())
+      ));
+      if (selectedUser && selectedUser.id === editingUser.id) {
+        setSelectedUser(updatedUser);
       }
-      setMessage(editingUser ? 'User updated successfully' : 'User created successfully');
+      setMessage('User updated successfully');
+      resetForm();
     } catch (error) {
-      setError(error.response?.data?.message || 'Failed to save user');
+      setError(error.response?.data?.message || 'Failed to update user');
     } finally {
       setLoading(false);
     }
   };
 
   const handleEdit = (user) => {
+    if (!currentUser || currentUser.role !== 'SuperAdmin' || user.id === currentUser.id) {
+      setError('You do not have permission to edit this user');
+      return;
+    }
     setEditingUser(user);
     setFormData({
       username: user.username || '',
       email: user.email || '',
       role: user.role || 'User',
+      status: user.status || 'Active',
       birthdate: user.birthdate ? new Date(user.birthdate).toISOString().split('T')[0] : '',
       verified: user.verified || false,
-      status: user.status || 'Active',
       profilePhotoUrl: user.profilePhotoUrl || '',
     });
     setShowModal(true);
@@ -668,11 +673,10 @@ const Users = ({ onlineUsers = [] }) => {
     setFormData({
       username: '',
       email: '',
-      password: '',
       role: 'User',
+      status: 'Active',
       birthdate: '',
       verified: false,
-      status: 'Active',
       profilePhotoUrl: '',
     });
   };
@@ -684,12 +688,30 @@ const Users = ({ onlineUsers = [] }) => {
     }
   };
 
+  // Pagination logic
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
   const onlineUsersCount = filteredUsers.filter(user => user.isOnline).length;
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 rounded-[10px] border" style={{ overflow: 'visible' }}>
-      <header className="flex flex-col sm:flex-row justify-between items-center mb-12 max-w-6xl mx-auto gap-4">
-        <h1 className="text-3xl font-bold text-[#333] flex items-center">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 rounded-[10px] border overflow-x-hidden">
+      <header className="flex flex-col sm:flex-row justify-between items-center mb-12 max-w-7xl mx-auto gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#333] flex items-center">
           <span className="material-icons-round mr-2 text-[#0056B3]">people</span>
           Users Dashboard
         </h1>
@@ -700,8 +722,7 @@ const Users = ({ onlineUsers = [] }) => {
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder="Search by username or email..."
-              className="w-full px-4 py-3 pl-10 bg-white border border-gray-200 rounded-full shadow-sm 
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-3 pl-10 bg-white border border-gray-200 rounded-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             />
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           </div>
@@ -724,10 +745,10 @@ const Users = ({ onlineUsers = [] }) => {
       )}
 
       <div
-        className="bg-white rounded-t-2xl shadow-md overflow-hidden max-w-7xl mx-auto"
-        style={{ overflow: 'visible', fontFamily: "'Inter', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}
+        className="bg-white rounded-t-2xl shadow-md overflow-x-auto max-w-7xl mx-auto"
+        style={{ fontFamily: "'Inter', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}
       >
-        <div className="p-4 flex items-center justify-between">
+        <div className="p-4 flex items-center justify-between flex-wrap">
           {loading ? (
             <div className="flex items-center space-x-2">
               <div className="w-6 h-6 bg-gray-200 animate-pulse rounded-full" />
@@ -748,170 +769,195 @@ const Users = ({ onlineUsers = [] }) => {
           )}
         </div>
 
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">User</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Email</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Role</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Birthdate</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Verified</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading ? (
-              Array.from({ length: 5 }).map((_, index) => (
-                <tr key={index} className="animate-pulse">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center">
-                      <div className="w-12 h-12 bg-gray-200 rounded-full mr-3" />
-                      <div className="h-5 w-1/3 bg-gray-200 rounded" />
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="h-5 w-2/3 bg-gray-200 rounded" />
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="h-5 w-1/4 bg-gray-200 rounded" />
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="h-5 w-1/5 bg-gray-200 rounded" />
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="h-5 w-1/3 bg-gray-200 rounded" />
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="h-6 w-6 bg-gray-200 rounded-full mx-auto" />
-                  </td>
-                </tr>
-              ))
-            ) : (
-              filteredUsers.map((user) => {
-                const lastActive = formatLastActive(user.lastActive, user.isOnline);
-                return (
-                  <tr
-                    key={user.id}
-                    onClick={() => setSelectedUser(user)}
-                    className={`transition-colors cursor-pointer ${
-                      user.status === 'Suspended' ? 'bg-yellow-50' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <td className="px-6 py-4 relative" style={{ position: 'relative', overflow: 'visible' }}>
-                      <div
-                        className="flex items-center"
-                        onMouseEnter={() => setHoveredUserId(user.id)}
-                        onMouseLeave={() => setHoveredUserId(null)}
-                      >
-                        <div className="relative">
-                          <div className="w-12 h-12 rounded-full overflow-hidden relative">
-                            {user.profilePhotoUrl ? (
-                              <img src={user.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
-                            ) : (
-                              <div
-                                className="w-full h-12 flex items-center justify-center text-white font-bold shadow-md text-lg"
-                                style={{ backgroundColor: getRandomColor() }}
-                              >
-                                {getInitials(user.username)}
-                              </div>
-                            )}
-                          </div>
-                          <div className="absolute -bottom-0 -right-0 flex items-center">
-                            {user.isOnline && (
-                              <span
-                                className="w-4 h-4 rounded-full border-2 border-white shadow-md transition-all duration-300 bg-green-500"
-                              ></span>
-                            )}
-                            {!user.isOnline && lastActive && (
-                              <span
-                                className="ml-1 text-xs font-semibold px-1 py-0.5 rounded bg-gray-100 text-gray-700 shadow-sm"
-                                style={{ color: lastActive.color }}
-                              >
-                                {lastActive.text}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <span
-                          className={`text-lg font-medium text-gray-800 ml-3 ${
-                            user.status === 'Suspended' ? 'line-through text-gray-500' : ''
-                          }`}
-                        >
-                          {user.username}
-                        </span>
-                        <UserProfilePopup user={user} show={hoveredUserId === user.id} />
+        <div className="max-h-[600px] overflow-y-auto">
+          <table className="w-full min-w-max">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              <tr>
+                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">User</th>
+                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">Email</th>
+                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">Role</th>
+                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">Birthdate</th>
+                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">Verified</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {loading ? (
+                Array.from({ length: usersPerPage }).map((_, index) => (
+                  <tr key={index} className="animate-pulse">
+                    <td className="px-4 sm:px-6 py-4">
+                      <div className="flex items-center">
+                        <div className="w-12 h-12 bg-gray-200 rounded-full mr-3" />
+                        <div className="h-5 w-1/3 bg-gray-200 rounded" />
                       </div>
                     </td>
-                    <td className={`px-6 py-4 text-lg text-gray-600 ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}>
-                      {user.email}
+                    <td className="px-4 sm:px-6 py-4">
+                      <div className="h-5 w-2/3 bg-gray-200 rounded" />
                     </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          user.role === 'SuperAdmin'
-                            ? 'bg-purple-100 text-purple-800'
-                            : user.role === 'Admin'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-green-100 text-green-800'
-                        } ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}
-                      >
-                        {user.role}
-                      </span>
+                    <td className="px-4 sm:px-6 py-4">
+                      <div className="h-5 w-1/4 bg-gray-200 rounded" />
                     </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          user.status === 'Active'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}
-                      >
-                        {user.status}
-                      </span>
+                    <td className="px-4 sm:px-6 py-4">
+                      <div className="h-5 w-1/5 bg-gray-200 rounded" />
                     </td>
-                    <td className={`px-6 py-4 text-left text-lg text-gray-600 ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}>
-                      {formatBirthdate(user.birthdate)}
+                    <td className="px-4 sm:px-6 py-4">
+                      <div className="h-5 w-1/3 bg-gray-200 rounded" />
                     </td>
-                    <td className="px-6 py-4 justify-center">
-                      {user.status === 'Suspended' ? (
-                        <span className="line-through text-gray-500">
-                          {user.verified ? <FaCheck className="text-green-500 w-6 h-6" /> : <FaTimes className="text-red-500 w-6 h-6" />}
-                        </span>
-                      ) : (
-                        user.verified ? <FaCheck className="text-green-500 w-6 h-6" /> : <FaTimes className="text-red-500 w-6 h-6" />
-                      )}
+                    <td className="px-4 sm:px-6 py-4">
+                      <div className="h-6 w-6 bg-gray-200 rounded-full mx-auto" />
                     </td>
                   </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                ))
+              ) : (
+                currentUsers.map((user) => {
+                  const lastActive = formatLastActive(user.lastActive, user.isOnline);
+                  return (
+                    <tr
+                      key={user.id}
+                      onClick={() => setSelectedUser(user)}
+                      className={`transition-colors cursor-pointer ${
+                        user.status === 'Suspended' ? 'bg-yellow-50' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-4 sm:px-6 py-4 relative" style={{ position: 'relative', overflow: 'visible' }}>
+                        <div
+                          className="flex items-center"
+                          onMouseEnter={() => setHoveredUserId(user.id)}
+                          onMouseLeave={() => setHoveredUserId(null)}
+                        >
+                          <div className="relative">
+                            <div className="w-12 h-12 rounded-full overflow-hidden relative">
+                              {user.profilePhotoUrl ? (
+                                <img src={user.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
+                              ) : (
+                                <div
+                                  className="w-full h-12 flex items-center justify-center text-white font-bold shadow-md text-lg"
+                                  style={{ backgroundColor: getRandomColor() }}
+                                >
+                                  {getInitials(user.username)}
+                                </div>
+                              )}
+                            </div>
+                            <div className="absolute -bottom-0 -right-0 flex items-center">
+                              {user.isOnline && (
+                                <span
+                                  className="w-4 h-4 rounded-full border-2 border-white shadow-md transition-all duration-300 bg-green-500"
+                                ></span>
+                              )}
+                              {!user.isOnline && lastActive && (
+                                <span
+                                  className="text-xs font-semibold px-1 py-0.5 rounded bg-gray-100 text-gray-700 shadow-sm"
+                                  style={{ color: lastActive.color }}
+                                >
+                                  {lastActive.text}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <span
+                            className={`text-base sm:text-lg font-medium text-gray-800 ml-3 ${
+                              user.status === 'Suspended' ? 'line-through text-gray-500' : ''
+                            }`}
+                          >
+                            {user.username}
+                          </span>
+                          <UserProfilePopup user={user} show={hoveredUserId === user.id} />
+                        </div>
+                      </td>
+                      <td className={`px-4 sm:px-6 py-4 text-base sm:text-lg text-gray-600 ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}>
+                        {user.email}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
+                            user.role === 'SuperAdmin'
+                              ? 'bg-purple-100 text-purple-800'
+                              : user.role === 'Admin'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-green-100 text-green-800'
+                          } ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}
+                        >
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
+                            user.status === 'Active'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}
+                        >
+                          {user.status}
+                        </span>
+                      </td>
+                      <td className={`px-4 sm:px-6 py-4 text-left text-base sm:text-lg text-gray-600 ${user.status === 'Suspended' ? 'line-through text-gray-500' : ''}`}>
+                        {formatBirthdate(user.birthdate)}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 text-center">
+                        {user.status === 'Suspended' ? (
+                          <span className="line-through text-gray-500">
+                            {user.verified ? <FaCheck className="text-green-500 w-6 h-6 mx-auto" /> : <FaTimes className="text-red-500 w-6 h-6 mx-auto" />}
+                          </span>
+                        ) : (
+                          user.verified ? <FaCheck className="text-green-500 w-6 h-6 mx-auto" /> : <FaTimes className="text-red-500 w-6 h-6 mx-auto" />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
         {!loading && filteredUsers.length === 0 && (
           <div className="text-center py-4 text-gray-500">No users found</div>
+        )}
+        {filteredUsers.length > usersPerPage && (
+          <div className="flex items-center justify-between p-4 bg-gray-50">
+            <button
+              onClick={handlePrevPage}
+              disabled={currentPage === 1}
+              className={`px-4 py-2 rounded-full flex items-center space-x-2 ${
+                currentPage === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'
+              } transition-all duration-200`}
+            >
+              <FaChevronLeft />
+              <span>Previous</span>
+            </button>
+            <span className="text-gray-600">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages}
+              className={`px-4 py-2 rounded-full flex items-center space-x-2 ${
+                currentPage === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'
+              } transition-all duration-200`}
+            >
+              <span>Next</span>
+              <FaChevronRight />
+            </button>
+          </div>
         )}
       </div>
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-fit transform transition-all duration-300 scale-95 animate-scaleIn">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-95 animate-scaleIn">
             <h2 className="text-xl font-bold mb-6 text-gray-800 flex items-center">
               {loading ? (
                 <div className="h-6 w-1/2 bg-gray-200 animate-pulse rounded" />
-              ) : editingUser ? (
+              ) : (
                 <>
                   <FaEdit className="mr-2 text-blue-600" /> Edit User
                 </>
-              ) : (
-                <>
-                  <FaUserPlus className="mr-2 text-blue-600" /> Create New User
-                </>
               )}
             </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-4">
               {loading ? (
                 <>
-                  {Array.from({ length: editingUser ? 6 : 7 }).map((_, i) => (
+                  {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="space-y-2">
                       <div className="h-4 w-1/4 bg-gray-200 animate-pulse rounded" />
                       <div className="h-10 w-full bg-gray-200 animate-pulse rounded-lg" />
@@ -944,28 +990,30 @@ const Users = ({ onlineUsers = [] }) => {
                       required
                     />
                   </div>
-                  {!editingUser && (
+                  {currentUser?.role === 'SuperAdmin' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Password</label>
-                      <input
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      <label className="block text-sm font-medium text-gray-700">Role</label>
+                      <select
+                        value={formData.role}
+                        onChange={(e) => handleRoleChangeConfirmation(e.target.value)}
                         className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
+                      >
+                        <option value={formData.role} disabled>{formData.role} (Current)</option>
+                        {['User', 'Admin', 'SuperAdmin'].filter(role => role !== formData.role).map(role => (
+                          <option key={role} value={role}>{role}</option>
+                        ))}
+                      </select>
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Role</label>
+                    <label className="block text-sm font-medium text-gray-700">Status</label>
                     <select
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                       className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="User">User</option>
-                      <option value="Admin">Admin</option>
-                      <option value="SuperAdmin">SuperAdmin</option>
+                      <option value="Active">Active</option>
+                      <option value="Suspended">Suspended</option>
                     </select>
                   </div>
                   <div>
@@ -989,20 +1037,8 @@ const Users = ({ onlineUsers = [] }) => {
                       <option value="false">No</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Status</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="mt-1 w-full p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Suspended">Suspended</option>
-                    </select>
-                  </div>
                   <div className="flex justify-end space-x-3 pt-4">
                     <button
-                      type="button"
                       onClick={resetForm}
                       className="px-6 py-3 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-full hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-300"
                       disabled={loading}
@@ -1010,17 +1046,17 @@ const Users = ({ onlineUsers = [] }) => {
                       Cancel
                     </button>
                     <button
-                      type="submit"
+                      onClick={handleSubmit}
                       className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full hover:from-blue-700 hover:to-blue-800 shadow-md transition-all duration-300 flex items-center"
                       disabled={loading}
                     >
                       {loading && <LoadingIndicator />}
-                      {editingUser ? 'Update' : 'Create'}
+                      Update
                     </button>
                   </div>
                 </>
               )}
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -1034,6 +1070,7 @@ const Users = ({ onlineUsers = [] }) => {
             onDelete={handleDelete}
             onStatusToggle={handleStatusToggle}
             loading={loading}
+            currentUser={currentUser}
           />
         </div>
       )}
@@ -1051,7 +1088,7 @@ const Users = ({ onlineUsers = [] }) => {
   );
 };
 
-// Custom Styles (unchanged)
+// Custom Styles
 const styles = `
   @keyframes slideIn {
     from { transform: translateY(-20px); opacity: 0; }

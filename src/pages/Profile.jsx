@@ -564,7 +564,7 @@ const clearMessage = () => {
                         ) : (
                           <span
                             className="w-full h-full flex items-center justify-center text-3xl font-bold text-white"
-                            style={{ background: 'linear-gradient(135deg, #4F46E5, #7C3AED)' }}
+                            style={{ background: '#0056B3' }}
                           >
                             {getInitials(profile.username)}
                           </span>

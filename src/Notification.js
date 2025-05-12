@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaBell, FaKey, FaShieldAlt, FaChevronRight, FaUserPlus, FaUserMinus, FaAddressBook, FaTasks, FaEnvelope, FaTicketAlt, FaCheckCircle, FaSyncAlt } from 'react-icons/fa';
+import { FaBell, FaKey, FaShieldAlt, FaChevronRight,FaExclamationTriangle, FaUserPlus, FaUserMinus, FaAddressBook, FaTasks, FaEnvelope, FaTicketAlt, FaCheckCircle, FaSyncAlt, FaCalendarCheck } from 'react-icons/fa';
 import axios from 'axios';
 
 // Notification types enum
@@ -16,8 +16,9 @@ const NotificationType = {
   TICKET_OPENED: "TICKET_OPENED",
   TICKET_CLOSED: "TICKET_CLOSED",
   TICKET_STATUS_CHANGED: "TICKET_STATUS_CHANGED",
+  TASK_OVERDUE : "TASK OVERDUE",
+  TASK_UPCOMING : "TASK UPCOMING"
 };
-
 // Function to get notification icon based on type
 const getNotificationDetails = (type) => {
   switch (type) {
@@ -43,6 +44,10 @@ const getNotificationDetails = (type) => {
       return { icon: <FaCheckCircle className="w-5 h-5 text-green-500" /> };
     case NotificationType.TICKET_STATUS_CHANGED:
       return { icon: <FaSyncAlt className="w-5 h-5 text-blue-500" /> };
+    case NotificationType.TASK_OVERDUE:
+      return { icon: <FaExclamationTriangle className="w-5 h-5 text-red-500" /> };
+    case NotificationType.TASK_UPCOMING:
+      return { icon: <FaCalendarCheck className="w-5 h-5 text-blue-500" /> };
     default:
       return { icon: <FaBell className="w-5 h-5 text-gray-500" /> };
   }
