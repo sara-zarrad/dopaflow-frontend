@@ -146,8 +146,10 @@ const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, l
 };
 
 // Task Details Popup Component
-const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelete, moveLoading, deleteLoading, users }) => {
+const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelete, moveLoading, deleteLoading, users, opportunities }) => {
   const assignedUser = users?.find(user => user.id === task.assignedUserId);
+  const opportunity = opportunities?.find(op => op.id === task.opportunityId);
+  const isOpportunityClosed = opportunity?.status && ["CLOSED", "WON", "LOST"].includes(opportunity.status.toUpperCase());
 
   return (
     <div
@@ -183,7 +185,7 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
             <span>
               <span className="font-medium">Deadline: </span>
               {new Date(task.deadline).toLocaleString('en-GB', { 
-                timeZone: 'Europe/London', // GMT+1 during BST, adjust as needed
+                timeZone: 'Europe/London',
                 day: 'numeric', 
                 month: 'long', 
                 year: 'numeric',
@@ -219,7 +221,7 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
             <FaFolderOpen className="text-gray-400" />
             <span className="font-medium">Opportunity: </span>
             <span className="block break-words overflow-hidden text-gray-700">
-              {task.opportunityTitle || 'No opportunity'}
+              {task.opportunityTitle || 'No opportunity'} {opportunity?.status ? `(${opportunity.status})` : ''}
             </span>
           </div>
           <div className="flex items-center space-x-3">
@@ -237,41 +239,49 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
           </div>
         </div>
         <div className="mt-6 flex justify-end space-x-3 flex-wrap gap-2">
-          <button
-            onClick={() => onMove(task.id, 'Done')}
-            className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 flex items-center shadow-md"
-            disabled={moveLoading}
-          >
-            {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaCheck className="mr-2" />}
-            Done
-          </button>
+          {column !== 'ToDo' && (
+            <button
+              onClick={() => onMove(task.id, 'Done')}
+              className={`px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 flex items-center shadow-md ${isOpportunityClosed ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={moveLoading || isOpportunityClosed}
+              title={isOpportunityClosed ? 'Cannot move: Opportunity is closed, won, or lost' : 'Mark as Done'}
+            >
+              {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaCheck className="mr-2" />}
+              Done
+            </button>
+          )}
           <button
             onClick={() => onMove(task.id, 'InProgress')}
-            className="px-4 py-2 bg-yellow-600 text-white rounded-xl hover:bg-yellow-700 transition-all duration-200 flex items-center shadow-md"
-            disabled={moveLoading}
+            className={`px-4 py-2 bg-yellow-600 text-white rounded-xl hover:bg-yellow-700 transition-all duration-200 flex items-center shadow-md ${isOpportunityClosed ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={moveLoading || isOpportunityClosed}
+            title={isOpportunityClosed ? 'Cannot move: Opportunity is closed, won, or lost' : 'Move to In Progress'}
           >
             {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaTasks className="mr-2" />}
             In Progress
           </button>
           <button
             onClick={() => onMove(task.id, 'Cancelled')}
-            className="px-4 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 flex items-center shadow-md"
-            disabled={moveLoading}
+            className={`px-4 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 flex items-center shadow-md ${isOpportunityClosed ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={moveLoading || isOpportunityClosed}
+            title={isOpportunityClosed ? 'Cannot move: Opportunity is closed, won, or lost' : 'Cancel'}
           >
             {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaBan className="mr-2" />}
             Cancel
           </button>
           <button
             onClick={() => onEdit(task)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 flex items-center shadow-md"
+            className={`px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 flex items-center shadow-md ${isOpportunityClosed ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={isOpportunityClosed}
+            title={isOpportunityClosed ? 'Cannot edit: Opportunity is closed, won, or lost' : 'Edit'}
           >
             <FaEdit className="mr-2" />
             Edit
           </button>
           <button
             onClick={() => onDelete(task.id, column)}
-            className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 flex items-center shadow-md"
-            disabled={deleteLoading}
+            className={`px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 flex items-center shadow-md ${isOpportunityClosed ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={deleteLoading || isOpportunityClosed}
+            title={isOpportunityClosed ? 'Cannot delete: Opportunity is closed, won, or lost' : 'Delete'}
           >
             {deleteLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaTrash className="mr-2" />}
             Delete
@@ -283,9 +293,11 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
 };
 
 // Task Card Component (Kanban View)
-const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users }) => {
+const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users, opportunities }) => {
   const [showDetails, setShowDetails] = useState(false);
   const assignedUser = users?.find(user => user.id === task.assignedUserId);
+  const opportunity = opportunities?.find(op => op.id === task.opportunityId);
+  const isOpportunityClosed = opportunity?.status && ["CLOSED", "WON", "LOST"].includes(opportunity.status.toUpperCase());
 
   return (
     <>
@@ -322,7 +334,7 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
           <div className="flex items-center space-x-2">
             <FaCalendarAlt className="text-gray-400" />
             <span>{new Date(task.deadline).toLocaleString('en-GB', { 
-              timeZone: 'Europe/London', // GMT+1 during BST, adjust as needed
+              timeZone: 'Europe/London',
               day: 'numeric', 
               month: 'long', 
               year: 'numeric',
@@ -351,7 +363,7 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
           <div className="flex items-center space-x-2">
             <FaFolderOpen className="text-gray-400 w-4 h-4" />
             <span className="truncate block max-w-[90%] text-gray-700">
-              {task.opportunityTitle || 'No opportunity'}
+              {task.opportunityTitle || 'No opportunity'} {opportunity?.status ? `(${opportunity.status})` : ''}
             </span>
           </div>
           <div className="flex items-center space-x-2">
@@ -361,11 +373,12 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
         </div>
         <div className="mt-4">
           <div className="flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            {column !== 'Done' && (
+            {column === 'InProgress' && (
               <button
                 onClick={() => onMove(task.id, 'Done')}
-                className="p-2 text-green-600 hover:bg-green-100 rounded-xl transition-colors duration-200"
-                title="Mark as Done"
+                className={`p-2 text-green-600 hover:bg-green-100 rounded-xl transition-colors duration-200 ${isOpportunityClosed ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={isOpportunityClosed}
+                title={isOpportunityClosed ? 'Cannot move: Opportunity is closed, won, or lost' : 'Mark as Done'}
               >
                 <FaCheck className="w-5 h-5" />
               </button>
@@ -373,8 +386,9 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
             {column !== 'InProgress' && column !== 'Done' && column !== 'Cancelled' && (
               <button
                 onClick={() => onMove(task.id, 'InProgress')}
-                className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-xl transition-colors duration-200"
-                title="Move to In Progress"
+                className={`p-2 text-yellow-600 hover:bg-yellow-100 rounded-xl transition-colors duration-200 ${isOpportunityClosed ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={isOpportunityClosed}
+                title={isOpportunityClosed ? 'Cannot move: Opportunity is closed, won, or lost' : 'Move to In Progress'}
               >
                 <FaTasks className="w-5 h-5" />
               </button>
@@ -382,8 +396,9 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
             {column !== 'Cancelled' && (
               <button
                 onClick={() => onMove(task.id, 'Cancelled')}
-                className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors duration-200"
-                title="Cancel Task"
+                className={`p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors duration-200 ${isOpportunityClosed ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={isOpportunityClosed}
+                title={isOpportunityClosed ? 'Cannot move: Opportunity is closed, won, or lost' : 'Cancel Task'}
               >
                 <FaBan className="w-5 h-5" />
               </button>
@@ -402,6 +417,7 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
         moveLoading={false}
         deleteLoading={false}
         users={users}
+        opportunities={opportunities}
       />
     </>
   );
@@ -437,6 +453,11 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
   const validateForm = () => {
     if (!newTask.opportunityId) {
       setErrorMessage("Please select an opportunity.");
+      return false;
+    }
+    const selectedOpportunity = opportunities.find(op => op.id === newTask.opportunityId);
+    if (selectedOpportunity?.status && ["CLOSED", "WON", "LOST"].includes(selectedOpportunity.status.toUpperCase())) {
+      setErrorMessage("Cannot create task: Opportunity is closed, won, or lost.");
       return false;
     }
     if (!newTask.assignedUserId) {
@@ -656,7 +677,9 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
             >
               <option value="">Select an opportunity</option>
               {opportunities.map(opportunity => (
-                <option key={opportunity.id} value={opportunity.id}>{opportunity.title}</option>
+                <option key={opportunity.id} value={opportunity.id}>
+                  {opportunity.title} {opportunity.status ? `(${opportunity.status})` : ''}
+                </option>
               ))}
             </select>
           </div>
@@ -724,6 +747,11 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
   const validateForm = () => {
     if (!editTask.opportunityId) {
       setErrorMessage("Please select an opportunity.");
+      return false;
+    }
+    const selectedOpportunity = opportunities.find(op => op.id === editTask.opportunityId);
+    if (selectedOpportunity?.status && ["CLOSED", "WON", "LOST"].includes(selectedOpportunity.status.toUpperCase())) {
+      setErrorMessage("Cannot edit task: Opportunity is closed, won, or lost.");
       return false;
     }
     if (!editTask.assignedUserId) {
@@ -945,7 +973,9 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
             >
               <option value="">Select an opportunity</option>
               {opportunities.map(opportunity => (
-                <option key={opportunity.id} value={opportunity.id}>{opportunity.title}</option>
+                <option key={opportunity.id} value={opportunity.id}>
+                  {opportunity.title} {opportunity.status ? `(${opportunity.status})` : ''}
+                </option>
               ))}
             </select>
           </div>
@@ -994,7 +1024,10 @@ const Tasks = () => {
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState(null);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('all'); // Priority filter
+  const [opportunityFilter, setOpportunityFilter] = useState(''); // Opportunity filter
+  const [opportunitySearch, setOpportunitySearch] = useState(''); // Search term for opportunities
+  const [showOpportunityDropdown, setShowOpportunityDropdown] = useState(false); // Control visibility of opportunity dropdown
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [message, setMessage] = useState(null);
@@ -1015,9 +1048,17 @@ const Tasks = () => {
   });
 
   const { data: tasksData, isLoading, error: tasksError } = useQuery({
-    queryKey: ['tasks'],
+    queryKey: ['tasks', filter, opportunityFilter, searchQuery],
     queryFn: async () => {
-      const response = await api.get('/tasks/all');
+      const params = new URLSearchParams();
+      if (filter !== 'all') params.append('status', filter.toUpperCase());
+      if (opportunityFilter) params.append('opportunityId', opportunityFilter);
+      if (searchQuery) params.append('query', searchQuery);
+      params.append('page', '0');
+      params.append('size', '100');
+      params.append('sort', 'deadline,desc');
+
+      const response = await api.get(`/tasks/filter?${params.toString()}`);
       return response.data.content.reduce((acc, task) => {
         const status = task.statutTask || 'ToDo';
         acc[status] = [...(acc[status] || []), task];
@@ -1051,7 +1092,7 @@ const Tasks = () => {
         `/tasks/add?opportunityId=${task.opportunityId}&assignedUserId=${task.assignedUserId}`,
         {
           ...task,
-          deadline: new Date(task.deadline).toISOString() // Convert to UTC for backend
+          deadline: new Date(task.deadline).toISOString()
         }
       );
       return response.data;
@@ -1077,7 +1118,7 @@ const Tasks = () => {
         {
           title: task.title,
           description: task.description || '',
-          deadline: new Date(task.deadline).toISOString(), // Convert to UTC for backend
+          deadline: new Date(task.deadline).toISOString(),
           priority: task.priority,
           typeTask: task.typeTask,
           opportunity: { id: task.opportunityId },
@@ -1132,6 +1173,33 @@ const Tasks = () => {
     },
   });
 
+  // Filter opportunities based on search term
+  const filteredOpportunities = opportunities?.filter(opportunity =>
+    opportunity.title.toLowerCase().includes(opportunitySearch.toLowerCase())
+  ) || [];
+
+  // Get the selected opportunity's title for display
+  const selectedOpportunity = opportunities?.find(op => op.id === opportunityFilter);
+
+  // Handlers for opportunity search and selection
+  const handleOpportunitySearch = (e) => {
+    const query = e.target.value;
+    setOpportunitySearch(query);
+    setShowOpportunityDropdown(true);
+  };
+
+  const handleOpportunitySelect = (opportunityId) => {
+    setOpportunityFilter(opportunityId);
+    setOpportunitySearch('');
+    setShowOpportunityDropdown(false);
+  };
+
+  const handleClearOpportunity = () => {
+    setOpportunityFilter('');
+    setOpportunitySearch('');
+    setShowOpportunityDropdown(false);
+  };
+
   // Effects
   useEffect(() => {
     if (tasksData) {
@@ -1173,16 +1241,39 @@ const Tasks = () => {
   };
 
   const handleMoveTask = (taskId, newStatus) => {
+    const task = Object.values(tasks).flat().find(t => t.id === taskId);
+    const opportunity = opportunities?.find(op => op.id === task.opportunityId);
+    if (opportunity?.status && ["CLOSED", "WON", "LOST"].includes(opportunity.status.toUpperCase())) {
+      setMessage('Cannot move task: Opportunity is closed, won, or lost.');
+      setMessageType('error');
+      return;
+    }
     moveTaskMutation.mutate({ taskId, newStatus });
   };
 
   const handleDeleteTask = (taskId, column) => {
+    const task = Object.values(tasks).flat().find(t => t.id === taskId);
+    const opportunity = opportunities?.find(op => op.id === task.opportunityId);
+    if (opportunity?.status && ["CLOSED", "WON", "LOST"].includes(opportunity.status.toUpperCase())) {
+      setMessage('Cannot delete task: Opportunity is closed, won, or lost.');
+      setMessageType('error');
+      return;
+    }
     setTaskToDelete({ id: taskId, column });
     setShowDeleteModal(true);
   };
 
   const confirmDeleteTask = () => {
     if (!taskToDelete) return;
+    const task = Object.values(tasks).flat().find(t => t.id === taskToDelete.id);
+    const opportunity = opportunities?.find(op => op.id === task.opportunityId);
+    if (opportunity?.status && ["CLOSED", "WON", "LOST"].includes(opportunity.status.toUpperCase())) {
+      setMessage('Cannot delete task: Opportunity is closed, won, or lost.');
+      setMessageType('error');
+      setShowDeleteModal(false);
+      setTaskToDelete(null);
+      return;
+    }
     deleteTaskMutation.mutate(taskToDelete.id);
   };
 
@@ -1196,6 +1287,12 @@ const Tasks = () => {
       hour: '2-digit',
       minute: '2-digit'
     }).replace(' ', 'T');
+    const opportunity = opportunities?.find(op => op.id === task.opportunityId);
+    if (opportunity?.status && ["CLOSED", "WON", "LOST"].includes(opportunity.status.toUpperCase())) {
+      setMessage('Cannot edit task: Opportunity is closed, won, or lost.');
+      setMessageType('error');
+      return;
+    }
     setEditTask({
       id: task.id,
       title: task.title,
@@ -1212,9 +1309,6 @@ const Tasks = () => {
 
   const filteredTasks = (tasksList) => {
     let filtered = tasksList;
-    if (filter !== 'all') {
-      filtered = filtered.filter(task => task.priority.toLowerCase() === filter);
-    }
     if (searchQuery) {
       filtered = filtered.filter(task => 
         task.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1274,18 +1368,71 @@ const Tasks = () => {
               <FaFilter className="mr-2" /> Filter
             </button>
             {isFilterOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-20 animate-dropIn">
-                {['all', 'high', 'medium', 'low'].map(f => (
-                  <button
-                    key={f}
-                    onClick={() => { setFilter(f); setIsFilterOpen(false); }}
-                    className={`w-full text-left px-5 py-3 text-gray-700 hover:bg-blue-50 transition-colors duration-200 
-                      ${filter === f ? 'bg-blue-50 text-blue-700 font-semibold' : ''} 
-                      ${f === 'all' ? 'rounded-t-xl' : ''} ${f === 'low' ? 'rounded-b-xl' : ''}`}
+              <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 z-20 animate-dropIn p-4">
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                  <select
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   >
-                    {f === 'all' ? 'All Tasks' : `Priority ${f.charAt(0).toUpperCase() + f.slice(1)}`}
-                  </button>
-                ))}
+                    <option value="all">All Priorities</option>
+                    <option value="high">Priority High</option>
+                    <option value="medium">Priority Medium</option>
+                    <option value="low">Priority Low</option>
+                  </select>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Opportunity</label>
+                  {opportunityFilter && (
+                    <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg mb-2">
+                      <span className="text-gray-700 truncate">
+                        {selectedOpportunity?.title} {selectedOpportunity?.status ? `(${selectedOpportunity.status})` : ''}
+                      </span>
+                      <button
+                        onClick={handleClearOpportunity}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        <FaTimes className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={opportunitySearch}
+                      onChange={handleOpportunitySearch}
+                      onFocus={() => setShowOpportunityDropdown(true)}
+                      placeholder="Search opportunities..."
+                      className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    />
+                    <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    {showOpportunityDropdown && filteredOpportunities.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                        {filteredOpportunities.map((opportunity) => (
+                          <div
+                            key={opportunity.id}
+                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-gray-700"
+                            onClick={() => handleOpportunitySelect(opportunity.id)}
+                          >
+                            {opportunity.title} {opportunity.status ? `(${opportunity.status})` : ''}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {showOpportunityDropdown && opportunitySearch && filteredOpportunities.length === 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 text-gray-500">
+                        No opportunities found
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsFilterOpen(false)}
+                  className="mt-4 w-full px-4 py-2 bg-gradient-to-r from-gray-200 to-gray-300 text-gray-700 rounded-xl hover:from-gray-300 hover:to-gray-400 shadow-md transition-all duration-200"
+                >
+                  Close
+                </button>
               </div>
             )}
           </div>
@@ -1328,6 +1475,7 @@ const Tasks = () => {
                       column={column}
                       isHighlighted={task.id.toString() === highlightedTaskId}
                       users={users || []}
+                      opportunities={opportunities || []}
                     />
                   ))
                 )}
