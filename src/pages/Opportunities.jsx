@@ -979,106 +979,134 @@ useEffect(() => {
                       </tr>
                     </thead>
                     <tbody>
-                      {isLoading ? (
-                        <tr>
-                          <td colSpan="10" className="px-4 py-6 text-center text-gray-500">
-                            <FaSpinner className="animate-spin inline mr-2" /> Loading opportunities...
-                          </td>
-                        </tr>
-                      ) : stage.opportunities.length === 0 ? (
-                        <tr>
-                          <td colSpan="10" className="px-4 py-6 text-center text-gray-500">No opportunities in this stage.</td>
-                        </tr>
-                      ) : (
-                        stage.opportunities.map((opp) => (
-                          <tr key={opp.id} className="border-b border-gray-200 hover:bg-gray-50 transition-all duration-200">
-                            <td className="px-4 py-3 text-sm text-gray-800 break-words max-w-72">{opp.title}</td>
-                            <td className="px-4 py-3 text-sm text-indigo-600 font-medium">{formatCurrency(opp.value)}</td>
-                            <td className="px-4 py-3 text-sm text-gray-700">{opp.contact?.name || 'None'}</td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-1 text-xs rounded-xl shadow-sm ${priorityColors[opp.priority]}`}>
-                                {priorityMapping[opp.priority]}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center space-x-2">
-                                <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
-                                  <div className="bg-indigo-500 h-2 rounded-xl transition-all duration-500 shadow-md" style={{ width: `${opp.progress}%` }} />
-                                </div>
-                                <span className="text-sm text-indigo-600">{opp.progress}%</span>
-                                <button onClick={() => handleIncrementProgress(opp.id)} className="p-1 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200">
-                                  <FaArrowUp />
-                                </button>
-                                <button onClick={() => handleDecrementProgress(opp.id)} className="p-1 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200">
-                                  <FaArrowDown />
-                                </button>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <select
-                                value={opp.stage}
-                                onChange={(e) => handleChangeStage(opp.id, e.target.value)}
-                                className="p-1 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
-                              >
-                                {Object.keys(stageMapping).map((key) => (
-                                  <option key={key} value={key} className="text-gray-700 font-medium">{stageMapping[key]}</option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-700">{opp.status}</td>
-                            <td className="px-4 py-3 text-sm text-gray-700">
-                              <div className="flex items-center space-x-2">
-                                {opp.owner?.profilePhotoUrl ? (
-                                  <img
-                                    src={`http://localhost:8080${opp.owner.profilePhotoUrl}`}
-                                    alt={opp.owner.username || 'Owner'}
-                                    className="h-6 w-6 rounded-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">
-                                    {getInitials(opp.owner?.username)}
-                                  </div>
-                                )}
-                                <span>{opp.owner?.username || 'None'}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                            <div className="flex space-x-2">
-    {currentUser && opp.owner?.id === currentUser.id ? (
-      <>
-        <button
-          onClick={() => handleEdit(opp)}
-          className="p-2 text-indigo-600 rounded-xl shadow-md hover:bg-indigo-100 transition-all duration-200"
-        >
-          <FaEdit />
-        </button>
-        <button
-          onClick={() => handleDelete(opp.id)}
-          className="p-2 text-red-600 rounded-xl shadow-md hover:bg-red-100 transition-all duration-200"
-        >
-          <FaTrash />
-        </button>
-      </>
-    ) : (
-      <span className="text-gray-500 text-sm">Restricted</span>
-    )}
-  </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <button
-                                onClick={() => {
-                                  if (!tasksByOpportunity[opp.id]) fetchTasks(opp.id);
-                                  setTaskModalOpportunityId(opp.id);
-                                }}
-                                className="p-2 text-gray-600 hover:text-gray-800"
-                              >
-                                <FaExpand />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
+  {isLoading ? (
+    <tr>
+      <td colSpan="10" className="px-4 py-6 text-center text-gray-500">
+        <FaSpinner className="animate-spin inline mr-2" /> Loading opportunities...
+      </td>
+    </tr>
+  ) : stage.opportunities.length === 0 ? (
+    <tr>
+      <td colSpan="10" className="px-4 py-6 text-center text-gray-500">No opportunities in this stage.</td>
+    </tr>
+  ) : (
+    stage.opportunities.map((opp) => (
+      <tr key={opp.id} className="border-b border-gray-200 hover:bg-gray-50 transition-all duration-200">
+        <td className="px-4 py-3 text-sm text-gray-800 break-words max-w-72">{opp.title}</td>
+        <td className="px-4 py-3 text-sm text-indigo-600 font-medium">{formatCurrency(opp.value)}</td>
+        <td className="px-4 py-3 text-sm text-gray-700">{opp.contact?.name || 'None'}</td>
+        <td className="px-4 py-3">
+          <span className={`px-2 py-1 text-xs rounded-xl shadow-sm ${priorityColors[opp.priority]}`}>
+            {priorityMapping[opp.priority]}
+          </span>
+        </td>
+        <td className="px-4 py-3">
+          {currentUser && opp.owner?.id === currentUser.id ? (
+            <div className="flex items-center space-x-2">
+              <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
+                <div className="bg-indigo-500 h-2 rounded-xl transition-all duration-500 shadow-md" style={{ width: `${opp.progress}%` }} />
+              </div>
+              <span className="text-sm text-indigo-600">{opp.progress}%</span>
+              <button onClick={() => handleIncrementProgress(opp.id)} className="p-1 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200">
+                <FaArrowUp />
+              </button>
+              <button onClick={() => handleDecrementProgress(opp.id)} className="p-1 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200">
+                <FaArrowDown />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
+                <div className="bg-indigo-500 h-2 rounded-xl" style={{ width: `${opp.progress}%` }} />
+              </div>
+              <span className="text-sm text-indigo-600">{opp.progress}%</span>
+                          </div>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          {currentUser && opp.owner?.id === currentUser.id ? (
+            <select
+              value={opp.stage}
+              onChange={(e) => handleChangeStage(opp.id, e.target.value)}
+              className="p-1 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
+            >
+              {Object.keys(stageMapping).map((key) => (
+                <option key={key} value={key} className="text-gray-700 font-medium">{stageMapping[key]}</option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-sm text-gray-700">{stageMapping[opp.stage]}</span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-sm text-gray-700">
+          {currentUser && opp.owner?.id === currentUser.id && opp.stage === 'CLOSED' ? (
+            <select
+              value={opp.status}
+              onChange={(e) => handleUpdateStatus(opp.id, e.target.value)}
+              className="p-1 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
+            >
+              <option value="WON">Won</option>
+              <option value="LOST">Lost</option>
+            </select>
+          ) : (
+            <span className={opp.status === 'WON' ? 'text-green-600' : opp.status === 'LOST' ? 'text-red-600' : 'text-yellow-500'}>
+              {opp.status}
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-sm text-gray-700">
+          <div className="flex items-center space-x-2">
+            {opp.owner?.profilePhotoUrl ? (
+              <img
+                src={`http://localhost:8080${opp.owner.profilePhotoUrl}`}
+                alt={opp.owner.username || 'Owner'}
+                className="h-6 w-6 rounded-full object-cover"
+              />
+            ) : (
+              <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">
+                {getInitials(opp.owner?.username)}
+              </div>
+            )}
+            <span>{opp.owner?.username || 'None'}</span>
+          </div>
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex space-x-2">
+            {currentUser && opp.owner?.id === currentUser.id ? (
+              <>
+                <button
+                  onClick={() => handleEdit(opp)}
+                  className="p-2 text-indigo-600 rounded-xl shadow-md hover:bg-indigo-100 transition-all duration-200"
+                >
+                  <FaEdit />
+                </button>
+                <button
+                  onClick={() => handleDelete(opp.id)}
+                  className="p-2 text-red-600 rounded-xl shadow-md hover:bg-red-100 transition-all duration-200"
+                >
+                  <FaTrash />
+                </button>
+              </>
+            ) : (
+              <span className="text-gray-500 text-sm"></span>
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3">
+          <button
+            onClick={() => {
+              if (!tasksByOpportunity[opp.id]) fetchTasks(opp.id);
+              setTaskModalOpportunityId(opp.id);
+            }}
+            className="p-2 text-gray-600 hover:text-gray-800"
+          >
+            <FaExpand />
+          </button>
+        </td>
+      </tr>
+    ))
+  )}
+</tbody>
                   </table>
                 </div>
               </div>
@@ -1801,17 +1829,21 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
               <FaList className="text-gray-400 text-base" />
               <div className="flex items-center gap-2">
                 <span className="font-medium text-base">Stage: </span>
-                <select
-                  value={opportunity.stage}
-                  onChange={(e) => onChangeStage(e.target.value)}
-                  className="p-2 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
-                >
-                  {Object.keys(stageMapping).map((key) => (
-                    <option key={key} value={key} className="text-gray-700 font-medium">
-                      {stageMapping[key]}
-                    </option>
-                  ))}
-                </select>
+                {currentUser && opportunity.owner?.id === currentUser.id ? (
+                  <select
+                    value={opportunity.stage}
+                    onChange={(e) => onChangeStage(e.target.value)}
+                    className="p-2 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
+                  >
+                    {Object.keys(stageMapping).map((key) => (
+                      <option key={key} value={key} className="text-gray-700 font-medium">
+                        {stageMapping[key]}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-sm text-gray-700">{stageMapping[opportunity.stage]}</span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -1825,39 +1857,44 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
                   />
                 </div>
                 <span className="text-sm text-indigo-600">{opportunity.progress}%</span>
-                <button
-                  onClick={onIncrementProgress}
-                  className="p-2 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200"
-                >
-                  <FaArrowUp className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={onDecrementProgress}
-                  className="p-2 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200"
-                >
-                  <FaArrowDown className="w-4 h-4" />
-                </button>
+                {currentUser && opportunity.owner?.id === currentUser.id ? (
+                  <>
+                    <button
+                      onClick={onIncrementProgress}
+                      className="p-2 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200"
+                    >
+                      <FaArrowUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={onDecrementProgress}
+                      className="p-2 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200"
+                    >
+                      <FaArrowDown className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-gray-500 text-sm"></span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
               <FaCheck className="text-gray-400 text-base" />
               <div className="flex items-center gap-2">
                 <span className="font-medium text-base">Status: </span>
-                <select
-                  value={opportunity.status}
-                  onChange={(e) => onUpdateStatus(e.target.value)}
-                  className="p-2 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
-                  disabled={opportunity.stage !== 'CLOSED'}
-                >
-                  {opportunity.stage === 'CLOSED' ? (
-                    <>
-                      <option value="WON">Won</option>
-                      <option value="LOST">Lost</option>
-                    </>
-                  ) : (
-                    <option value="IN_PROGRESS">In Progress</option>
-                  )}
-                </select>
+                {currentUser && opportunity.owner?.id === currentUser.id && opportunity.stage === 'CLOSED' ? (
+                  <select
+                    value={opportunity.status}
+                    onChange={(e) => onUpdateStatus(e.target.value)}
+                    className="p-2 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
+                  >
+                    <option value="WON">Won</option>
+                    <option value="LOST">Lost</option>
+                  </select>
+                ) : (
+                  <span className={opportunity.status === 'WON' ? 'text-green-600' : opportunity.status === 'LOST' ? 'text-red-600' : 'text-yellow-500'}>
+                    {opportunity.status}
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -1893,9 +1930,8 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
                 </>
               ) : (
                 <span className="text-gray-500 text-sm relative group">
-                  Restricted
+                  
                   <span className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-2 -mt-10 left-1/2 transform -translate-x-1/2">
-                    Only the opportunity owner can edit or delete.
                   </span>
                 </span>
               )}
