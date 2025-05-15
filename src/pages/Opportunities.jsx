@@ -206,15 +206,21 @@ useEffect(() => {
         opportunities = opportunitiesRes.data.content || [];
         setCachedOpportunities(opportunities);
       }
-
+  
+      // Ensure owner data is included
+      opportunities = opportunities.map(opp => ({
+        ...opp,
+        owner: opp.owner || { id: null, username: 'None' } // Fallback for null owner
+      }));
+  
       setAllOpportunities(opportunities);
       applyFilters(opportunities);
-
+  
       const contactsRes = await api.get('/contacts/search', { params: { query: '', size: 50 } });
       const initialContacts = contactsRes.data.content || [];
       setContacts(initialContacts);
       setFilteredContacts(initialContacts);
-
+  
       if (preselectedContactId) {
         const preselectedContact = await fetchContactById(preselectedContactId);
         if (preselectedContact) {
@@ -1001,43 +1007,59 @@ useEffect(() => {
           </span>
         </td>
         <td className="px-4 py-3">
-          {currentUser && opp.owner?.id === currentUser.id ? (
-            <div className="flex items-center space-x-2">
-              <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
-                <div className="bg-indigo-500 h-2 rounded-xl transition-all duration-500 shadow-md" style={{ width: `${opp.progress}%` }} />
-              </div>
-              <span className="text-sm text-indigo-600">{opp.progress}%</span>
-              <button onClick={() => handleIncrementProgress(opp.id)} className="p-1 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200">
-                <FaArrowUp />
-              </button>
-              <button onClick={() => handleDecrementProgress(opp.id)} className="p-1 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200">
-                <FaArrowDown />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-2">
-              <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
-                <div className="bg-indigo-500 h-2 rounded-xl" style={{ width: `${opp.progress}%` }} />
-              </div>
-              <span className="text-sm text-indigo-600">{opp.progress}%</span>
-                          </div>
-          )}
-        </td>
-        <td className="px-4 py-3">
-          {currentUser && opp.owner?.id === currentUser.id ? (
-            <select
-              value={opp.stage}
-              onChange={(e) => handleChangeStage(opp.id, e.target.value)}
-              className="p-1 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
-            >
-              {Object.keys(stageMapping).map((key) => (
-                <option key={key} value={key} className="text-gray-700 font-medium">{stageMapping[key]}</option>
-              ))}
-            </select>
-          ) : (
-            <span className="text-sm text-gray-700">{stageMapping[opp.stage]}</span>
-          )}
-        </td>
+  {currentUser && opp.owner?.id === currentUser.id ? (
+    <div className="flex items-center space-x-2">
+      <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
+        <div className="bg-indigo-500 h-2 rounded-xl transition-all duration-500 shadow-md" style={{ width: `${opp.progress}%` }} />
+      </div>
+      <span className="text-sm text-indigo-600">{opp.progress}%</span>
+      <button
+        onClick={() => handleIncrementProgress(opp.id)}
+        className="p-1 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200"
+        disabled={opp.progress >= 100}
+      >
+        <FaArrowUp />
+      </button>
+      <button
+        onClick={() => handleDecrementProgress(opp.id)}
+        className="p-1 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200"
+        disabled={opp.progress <= 0}
+      >
+        <FaArrowDown />
+      </button>
+    </div>
+  ) : (
+    <div className="flex items-center space-x-2 relative group">
+      <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
+        <div className="bg-indigo-500 h-2 rounded-xl" style={{ width: `${opp.progress}%` }} />
+      </div>
+      <span className="text-sm text-indigo-600">{opp.progress}%</span>
+      <span className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-2 -mt-10 left-1/2 transform -translate-x-1/2">
+        You are not the owner of this opportunity.
+      </span>
+    </div>
+  )}
+</td>
+<td className="px-4 py-3">
+  {currentUser && opp.owner?.id === currentUser.id ? (
+    <select
+      value={opp.stage}
+      onChange={(e) => handleChangeStage(opp.id, e.target.value)}
+      className="p-1 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
+    >
+      {Object.keys(stageMapping).map((key) => (
+        <option key={key} value={key} className="text-gray-700 font-medium">{stageMapping[key]}</option>
+      ))}
+    </select>
+  ) : (
+    <span className="text-sm text-gray-700 relative group">
+      {stageMapping[opp.stage]}
+      <span className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-2 -mt-10 left-1/2 transform -translate-x-1/2">
+        You are not the owner of this opportunity.
+      </span>
+    </span>
+  )}
+</td>
         <td className="px-4 py-3 text-sm text-gray-700">
           {currentUser && opp.owner?.id === currentUser.id && opp.stage === 'CLOSED' ? (
             <select
@@ -1071,27 +1093,32 @@ useEffect(() => {
           </div>
         </td>
         <td className="px-4 py-3">
-          <div className="flex space-x-2">
-            {currentUser && opp.owner?.id === currentUser.id ? (
-              <>
-                <button
-                  onClick={() => handleEdit(opp)}
-                  className="p-2 text-indigo-600 rounded-xl shadow-md hover:bg-indigo-100 transition-all duration-200"
-                >
-                  <FaEdit />
-                </button>
-                <button
-                  onClick={() => handleDelete(opp.id)}
-                  className="p-2 text-red-600 rounded-xl shadow-md hover:bg-red-100 transition-all duration-200"
-                >
-                  <FaTrash />
-                </button>
-              </>
-            ) : (
-              <span className="text-gray-500 text-sm"></span>
-            )}
-          </div>
-        </td>
+  <div className="flex space-x-2">
+    {currentUser && opp.owner?.id === currentUser.id ? (
+      <>
+        <button
+          onClick={() => handleEdit(opp)}
+          className="p-2 text-indigo-600 rounded-xl shadow-md hover:bg-indigo-100 transition-all duration-200"
+        >
+          <FaEdit />
+        </button>
+        <button
+          onClick={() => handleDelete(opp.id)}
+          className="p-2 text-red-600 rounded-xl shadow-md hover:bg-red-100 transition-all duration-200"
+        >
+          <FaTrash />
+        </button>
+      </>
+    ) : (
+      <span className="text-gray-500 text-sm italic relative group">
+        View only
+        <span className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-2 -mt-10 left-1/2 transform -translate-x-1/2">
+          You are not the owner of this opportunity.
+        </span>
+      </span>
+    )}
+  </div>
+</td>
         <td className="px-4 py-3">
           <button
             onClick={() => {
@@ -1608,39 +1635,40 @@ useEffect(() => {
         </div>
       )}
 
-      {expandedOpportunityId && !isExpanded && (
-        <div
-          className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 ${expandedOpportunityId ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
-          onClick={() => setExpandedOpportunityId(null)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg transform transition-all duration-300 scale-95 animate-scaleIn"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <OpportunityDetails
-              opportunity={allOpportunities.find(opp => opp.id === expandedOpportunityId)}
-              tasks={tasksByOpportunity[expandedOpportunityId]}
-              loadingTasks={loadingTasks[expandedOpportunityId]}
-              onClose={() => setExpandedOpportunityId(null)}
-              onEdit={() => {
-                const opp = allOpportunities.find(opp => opp.id === expandedOpportunityId);
-                setFormData({ ...opp, contactId: opp.contact?.id || null });
-                setEditingOpportunityId(opp.id);
-                debouncedSetShowForm(true);
-                setExpandedOpportunityId(null);
-              }}
-              onDelete={() => {
-                handleDelete(expandedOpportunityId);
-                setExpandedOpportunityId(null);
-              }}
-              onChangeStage={(newStage) => handleChangeStage(expandedOpportunityId, newStage)}
-              onIncrementProgress={() => handleIncrementProgress(expandedOpportunityId)}
-              onDecrementProgress={() => handleDecrementProgress(expandedOpportunityId)}
-              onUpdateStatus={(newStatus) => handleUpdateStatus(expandedOpportunityId, newStatus)}
-            />
-          </div>
-        </div>
-      )}
+{expandedOpportunityId && !isExpanded && (
+  <div
+    className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 ${expandedOpportunityId ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
+    onClick={() => setExpandedOpportunityId(null)}
+  >
+    <div
+      className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg transform transition-all duration-300 scale-95 animate-scaleIn"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <OpportunityDetails
+        opportunity={allOpportunities.find(opp => opp.id === expandedOpportunityId)}
+        tasks={tasksByOpportunity[expandedOpportunityId]}
+        loadingTasks={loadingTasks[expandedOpportunityId]}
+        onClose={() => setExpandedOpportunityId(null)}
+        onEdit={() => {
+          const opp = allOpportunities.find(opp => opp.id === expandedOpportunityId);
+          setFormData({ ...opp, contactId: opp.contact?.id || null });
+          setEditingOpportunityId(opp.id);
+          debouncedSetShowForm(true);
+          setExpandedOpportunityId(null);
+        }}
+        onDelete={() => {
+          handleDelete(expandedOpportunityId);
+          setExpandedOpportunityId(null);
+        }}
+        onChangeStage={(newStage) => handleChangeStage(expandedOpportunityId, newStage)}
+        onIncrementProgress={() => handleIncrementProgress(expandedOpportunityId)}
+        onDecrementProgress={() => handleDecrementProgress(expandedOpportunityId)}
+        onUpdateStatus={(newStatus) => handleUpdateStatus(expandedOpportunityId, newStatus)}
+        currentUser={currentUser} // Pass currentUser here
+      />
+    </div>
+  </div>
+)}
 
       <TaskModal
         isOpen={!!taskModalOpportunityId}
@@ -1677,6 +1705,9 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
   const [showTasks, setShowTasks] = useState(false);
 
   if (!opportunity) return null;
+
+  // Check if the current user is the owner
+  const isOwner = currentUser && opportunity.owner?.id === currentUser.id;
 
   const getInitials = (name = '') => {
     if (!name) return '??';
@@ -1829,7 +1860,7 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
               <FaList className="text-gray-400 text-base" />
               <div className="flex items-center gap-2">
                 <span className="font-medium text-base">Stage: </span>
-                {currentUser && opportunity.owner?.id === currentUser.id ? (
+                {isOwner ? (
                   <select
                     value={opportunity.stage}
                     onChange={(e) => onChangeStage(e.target.value)}
@@ -1857,31 +1888,31 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
                   />
                 </div>
                 <span className="text-sm text-indigo-600">{opportunity.progress}%</span>
-                {currentUser && opportunity.owner?.id === currentUser.id ? (
+                {isOwner ? (
                   <>
                     <button
                       onClick={onIncrementProgress}
                       className="p-2 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200"
+                      disabled={opportunity.progress >= 100}
                     >
                       <FaArrowUp className="w-4 h-4" />
                     </button>
                     <button
                       onClick={onDecrementProgress}
                       className="p-2 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200"
+                      disabled={opportunity.progress <= 0}
                     >
                       <FaArrowDown className="w-4 h-4" />
                     </button>
                   </>
-                ) : (
-                  <span className="text-gray-500 text-sm"></span>
-                )}
+                ) : null}
               </div>
             </div>
             <div className="flex items-center gap-3">
               <FaCheck className="text-gray-400 text-base" />
               <div className="flex items-center gap-2">
                 <span className="font-medium text-base">Status: </span>
-                {currentUser && opportunity.owner?.id === currentUser.id && opportunity.stage === 'CLOSED' ? (
+                {isOwner && opportunity.stage === 'CLOSED' ? (
                   <select
                     value={opportunity.status}
                     onChange={(e) => onUpdateStatus(e.target.value)}
@@ -1913,7 +1944,7 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
               <FaTasks className="mr-2 w-4 h-4" /> Show Tasks
             </button>
             <div className="flex gap-3">
-              {currentUser && opportunity.owner?.id === currentUser.id ? (
+              {isOwner ? (
                 <>
                   <button
                     onClick={onEdit}
@@ -1923,17 +1954,13 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
                   </button>
                   <button
                     onClick={onDelete}
-                    className="px-5 py-2 bg-red-600 text-white rounded-xl shadow-md hover:bg-red-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-300/50"
+                    className="px-5 py-2 bg-red-600 text-white rounded-xl shadow-md hover:bg-red-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500/50"
                   >
                     <FaTrash className="inline mr-2 w-4 h-4" /> Delete
                   </button>
                 </>
               ) : (
-                <span className="text-gray-500 text-sm relative group">
-                  
-                  <span className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-2 -mt-10 left-1/2 transform -translate-x-1/2">
-                  </span>
-                </span>
+                <span className="text-gray-500 text-sm italic"></span>
               )}
             </div>
           </div>
