@@ -78,29 +78,32 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [chartType, setChartType] = useState('tasks'); // 'tasks' or 'opportunities'
-
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) throw new Error('No authentication token found');
-
+  
         const resp = await fetch('http://localhost:8080/api/dashboard', {
           headers: { Authorization: `Bearer ${token}` }
         });
+  
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
-
+  
         if (data.activeUsers) {
-          data.activeUsers = data.activeUsers.map(u => ({
-            ...u,
-            profilePhotoUrl: u.profilePhotoUrl || null,
-            name: u.name || 'Unknown User',
-            role: u.role || 'User',
-            status: u.status || 'Inactive',
-          }));
+          // ✅ Filter only users with statutUser === 'Active'
+          data.activeUsers = data.activeUsers
+            .filter(u => u.status === 'Active')
+            .map(u => ({
+              ...u,
+              profilePhotoUrl: u.profilePhotoUrl || null,
+              name: u.name || 'Unknown User',
+              role: u.role || 'User',
+              status: u.status || 'Inactive',
+            }));
         }
-
+  
         setDashboardData(data);
         setLastUpdated(new Date());
       } catch (e) {
@@ -109,8 +112,10 @@ const Dashboard = () => {
         setIsLoading(false);
       }
     };
+  
     fetchDashboard();
   }, []);
+  
 
   const getRelativeTime = ts => {
     if (!ts) return 'N/A';
@@ -269,7 +274,7 @@ const Dashboard = () => {
       <div className="bg-white p-6 rounded-xl shadow-lg border border-[#E0E0E0]">
         <h3 className="text-xl font-semibold mb-4 flex items-center">
           <span className="material-icons-round mr-2 text-[#0056B3]">people</span>
-          Active Accounts
+          Weekly Active Accounts
         </h3>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-[#E0E0E0]">
@@ -278,7 +283,7 @@ const Dashboard = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-[#666] uppercase">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-[#666] uppercase">Role</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-[#666] uppercase">Last Activity</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-[#666] uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-[#666] uppercase">Account Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E0E0E0]">
@@ -307,8 +312,8 @@ const Dashboard = () => {
                     <td className="px-6 py-4 text-sm text-[#666]">
                       {getRelativeTime(u.lastActivity)}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
+                    <td className="px-8 py-4">
+                      <span className={`px-2 py-1 text-xs rounded-full  ${
                         u.status === 'Active'
                           ? 'bg-[#28A745]/10 text-[#28A745]'
                           : 'bg-[#DC3545]/10 text-[#DC3545]'

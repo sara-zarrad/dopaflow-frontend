@@ -22,6 +22,7 @@ api.interceptors.request.use(config => {
   return config;
 }, error => Promise.reject(error));
 
+// Utility Functions
 const getHighlightColor = (priority) => {
   switch (priority) {
     case 'HIGH': return 'bg-red-200 border-red-400';
@@ -39,6 +40,72 @@ const getStatusColor = (status) => {
     case 'Cancelled': return 'bg-gray-200';
     default: return 'bg-gray-500';
   }
+};
+
+const getPriorityColor = (priority) => {
+  switch (priority) {
+    case 'HIGH': return 'bg-gradient-to-r from-red-500 to-red-600 text-white';
+    case 'MEDIUM': return 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white';
+    case 'LOW': return 'bg-gradient-to-r from-green-500 to-green-600 text-white';
+    default: return 'bg-gradient-to-r from-gray-500 to-gray-600 text-white';
+  }
+};
+
+const getPriorityBorderColor = (priority) => {
+  switch (priority) {
+    case 'HIGH': return 'border-red-500';
+    case 'MEDIUM': return 'border-yellow-500';
+    case 'LOW': return 'border-green-500';
+    default: return 'border-gray-500';
+  }
+};
+
+const getInitials = (name = '') => {
+  if (!name) return '??';
+  const names = name.split(' ');
+  return names.map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
+};
+
+const getColor = () => '#b0b0b0';
+
+const getSafeImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+  return `http://localhost:8080${cleanUrl}`;
+};
+
+// Function to determine allowed actions based on task and opportunity status
+const getAllowedActions = (taskStatus, oppStatus) => {
+  const isOppInProgress = oppStatus === 'IN_PROGRESS';
+  const isOppClosed = ['WON', 'LOST'].includes(oppStatus);
+
+  if (taskStatus === 'ToDo') {
+    if (isOppInProgress) {
+      return { canEdit: true, canDelete: true, allowedMoves: ['InProgress', 'Cancelled'] };
+    } else if (isOppClosed) {
+      return { canEdit: false, canDelete: false, allowedMoves: ['Done', 'Cancelled'] };
+    }
+  } else if (taskStatus === 'InProgress') {
+    if (isOppInProgress) {
+      return { canEditAssignedTo: true, canEditOther: false, canDelete: false, allowedMoves: ['Done', 'Cancelled'] };
+    } else if (isOppClosed) {
+      return { canEdit: false, canDelete: false, allowedMoves: ['Done', 'Cancelled'] };
+    }
+  } else if (taskStatus === 'Done') {
+    if (isOppInProgress) {
+      return { canCancel: true, allowedMoves: ['Cancelled'], canDelete: false };
+    } else if (isOppClosed) {
+      return { canDelete: true, allowedMoves: [], canEdit: false };
+    }
+  } else if (taskStatus === 'Cancelled') {
+    if (isOppInProgress) {
+      return { canView: true, allowedMoves: [], canDelete: false, canEdit: false };
+    } else if (isOppClosed) {
+      return { canDelete: true, allowedMoves: [], canEdit: false };
+    }
+  }
+  return { allowedMoves: [], canEdit: false, canDelete: false };
 };
 
 // Message Display Component
@@ -119,12 +186,11 @@ const CustomModal = ({ isOpen, onClose, onConfirm, title, message, actionType, l
 };
 
 // Task Details Popup Component
-const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelete, moveLoading, deleteLoading, users, opportunities }) => {
+const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelete, moveLoading, deleteLoading, users, opportunities, currentUser }) => {
   const assignedUser = users?.find(user => user.id === task.assignedUserId);
   const opportunity = opportunities?.find(op => op.id === task.opportunityId);
-  const isTaskDone = task.statutTask === 'Done';
-  const isTaskCancelled = task.statutTask === 'Cancelled';
-  const canDelete = opportunity?.status && ["WON", "LOST"].includes(opportunity.status.toUpperCase());
+  const allowedActions = getAllowedActions(task.statutTask, opportunity?.status);
+  const isAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
 
   return (
     <div
@@ -179,7 +245,7 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
               >
                 {assignedUser?.profilePhotoUrl ? (
                   <img
-                    src={`http://localhost:8080${assignedUser.profilePhotoUrl}`}
+                    src={getSafeImageUrl(assignedUser.profilePhotoUrl)}
                     alt={assignedUser?.username}
                     className="w-8 h-8 rounded-full shadow-md object-cover"
                   />
@@ -212,7 +278,7 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
               <span className="font-medium">Company: </span>
               {task.companyPhotoUrl ? (
                 <img
-                  src={`http://localhost:8080${task.companyPhotoUrl}`}
+                  src={getSafeImageUrl(task.companyPhotoUrl)}
                   alt={task.companyName || 'Company'}
                   className="w-8 h-8 rounded-full shadow-md object-cover"
                 />
@@ -234,7 +300,7 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
                 <>
                   {task.contactPhotoUrl ? (
                     <img
-                      src={`http://localhost:8080${task.contactPhotoUrl}`}
+                      src={getSafeImageUrl(task.contactPhotoUrl)}
                       alt={task.contactName}
                       className="w-8 h-8 rounded-full shadow-md object-cover"
                     />
@@ -260,83 +326,80 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
           </div>
         </div>
         <div className="mt-6 flex justify-end space-x-3 flex-wrap gap-2">
-          {column === 'InProgress' && (
-            <>
-              <button
-                onClick={() => onMove(task.id, 'Done')}
-                className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 flex items-center shadow-md"
-                disabled={moveLoading}
-                title="Mark as Done"
-              >
-                {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaCheck className="mr-2" />}
-                Done
-              </button>
-              <button
-                onClick={() => onMove(task.id, 'Cancelled')}
-                className="px-4 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 flex items-center shadow-md"
-                disabled={moveLoading}
-                title="Cancel"
-              >
-                {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaBan className="mr-2" />}
-                Cancel
-              </button>
-              <button
-                onClick={() => onEdit(task)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 flex items-center shadow-md"
-                title="Edit"
-              >
-                <FaEdit className="mr-2" />
-                Edit
-              </button>
-            </>
+          {column === 'ToDo' && allowedActions.allowedMoves.includes('InProgress') && (
+            <button
+              onClick={() => onMove(task.id, 'InProgress')}
+              className="px-4 py-2 bg-yellow-600 text-white rounded-xl hover:bg-yellow-700 transition-all duration-200 flex items-center shadow-md"
+              disabled={moveLoading}
+              title="Move to In Progress"
+            >
+              {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaTasks className="mr-2" />}
+              In Progress
+            </button>
           )}
-          {column === 'ToDo' && (
-            <>
-              <button
-                onClick={() => onMove(task.id, 'InProgress')}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-xl hover:bg-yellow-700 transition-all duration-200 flex items-center shadow-md"
-                disabled={moveLoading}
-                title="Move to In Progress"
-              >
-                {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaTasks className="mr-2" />}
-                In Progress
-              </button>
-              <button
-                onClick={() => onMove(task.id, 'Cancelled')}
-                className="px-4 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 flex items-center shadow-md"
-                disabled={moveLoading}
-                title="Cancel"
-              >
-                {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaBan className="mr-2" />}
-                Cancel
-              </button>
-              <button
-                onClick={() => onEdit(task)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 flex items-center shadow-md"
-                title="Edit"
-              >
-                <FaEdit className="mr-2" />
-                Edit
-              </button>
-              <button
-                onClick={() => onDelete(task.id, column)}
-                className={`px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 flex items-center shadow-md ${(deleteLoading || !canDelete) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                disabled={deleteLoading || !canDelete}
-                title={!canDelete ? 'Cannot delete: Opportunity is not won or lost' : 'Delete'}
-              >
-                {deleteLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaTrash className="mr-2" />}
-                Delete
-              </button>
-            </>
+          {(column === 'ToDo' || column === 'InProgress') && allowedActions.allowedMoves.includes('Cancelled') && (
+            <button
+              onClick={() => onMove(task.id, 'Cancelled')}
+              className="px-4 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 flex items-center shadow-md"
+              disabled={moveLoading}
+              title="Cancel"
+            >
+              {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaBan className="mr-2" />}
+              Cancel
+            </button>
           )}
-          {(column === 'Done' || column === 'Cancelled') && (
+          {column === 'InProgress' && allowedActions.allowedMoves.includes('Done') && (
+            <button
+              onClick={() => onMove(task.id, 'Done')}
+              className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 flex items-center shadow-md"
+              disabled={moveLoading}
+              title="Mark as Done"
+            >
+              {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaCheck className="mr-2" />}
+              Done
+            </button>
+          )}
+          {column === 'ToDo' && allowedActions.allowedMoves.includes('Done') && (
+            <button
+              onClick={() => onMove(task.id, 'Done')}
+              className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all duration-200 flex items-center shadow-md"
+              disabled={moveLoading}
+              title="Mark as Done"
+            >
+              {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaCheck className="mr-2" />}
+              Done
+            </button>
+          )}
+          {column === 'Done' && allowedActions.allowedMoves.includes('Cancelled') && (
+            <button
+              onClick={() => onMove(task.id, 'Cancelled')}
+              className="px-4 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 flex items-center shadow-md"
+              disabled={moveLoading}
+              title="Cancel"
+            >
+              {moveLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaBan className="mr-2" />}
+              Cancel
+            </button>
+          )}
+          {(column === 'ToDo' && allowedActions.canEdit) || (column === 'InProgress' && allowedActions.canEditAssignedTo && isAdmin) ? (
+            <button
+              onClick={() => onEdit(task)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 flex items-center shadow-md"
+              title="Edit"
+            >
+              <FaEdit className="mr-2" />
+              Edit
+            </button>
+          ) : null}
+          {allowedActions.canDelete && (
             <button
               onClick={() => onDelete(task.id, column)}
-              className={`px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 flex items-center shadow-md ${(deleteLoading || !canDelete) ? 'opacity-50 cursor-not-allowed' : ''}`}
-              disabled={deleteLoading || !canDelete}
-              title={!canDelete ? 'Cannot delete: Opportunity is not won or lost' : 'Delete'}
+              className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 flex items-center shadow-md"
+              disabled={deleteLoading}
+              title="Delete"
             >
               {deleteLoading ? <FaSpinner className="animate-spin mr-2" /> : <FaTrash className="mr-2" />}
+              Delete
             </button>
           )}
         </div>
@@ -346,13 +409,12 @@ const TaskDetailsPopup = ({ task, show, onClose, column, onMove, onEdit, onDelet
 };
 
 // Task Card Component (Kanban View)
-const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users, opportunities }) => {
+const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users, opportunities, currentUser }) => {
   const [showDetails, setShowDetails] = useState(false);
   const assignedUser = users?.find(user => user.id === task.assignedUserId);
   const opportunity = opportunities?.find(op => op.id === task.opportunityId);
-  const isTaskDone = task.statutTask === 'Done';
-  const isTaskCancelled = task.statutTask === 'Cancelled';
-  const canDelete = (opportunity?.status && ["WON", "LOST"].includes(opportunity.status.toUpperCase()) || task.statutTask === 'ToDo' && opportunity?.status && ["IN_PROGRESS"].includes(opportunity.status.toUpperCase()));
+  const allowedActions = getAllowedActions(task.statutTask, opportunity?.status);
+  const isAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
 
   return (
     <>
@@ -405,7 +467,7 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
             >
               {assignedUser?.profilePhotoUrl ? (
                 <img
-                  src={`http://localhost:8080${assignedUser.profilePhotoUrl}`}
+                  src={getSafeImageUrl(assignedUser.profilePhotoUrl)}
                   alt={assignedUser?.username}
                   className="w-6 h-6 rounded-full shadow-md object-cover"
                 />
@@ -428,70 +490,65 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
         </div>
         <div className="mt-4">
           <div className="flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            {column === 'InProgress' && (
-              <>
-                <button
-                  onClick={() => onMove(task.id, 'Done')}
-                  className="p-2 text-green-600 hover:bg-green-100 rounded-xl transition-colors duration-200"
-                  title="Mark as Done"
-                >
-                  <FaCheck className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => onMove(task.id, 'Cancelled')}
-                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors duration-200"
-                  title="Cancel Task"
-                >
-                  <FaBan className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => onEdit(task)}
-                  className="p-2 text-blue-600 hover:bg-blue-100 rounded-xl transition-colors duration-200"
-                  title="Edit Task"
-                >
-                  <FaEdit className="w-5 h-5" />
-                </button>
-              </>
+            {column === 'ToDo' && allowedActions.allowedMoves.includes('InProgress') && (
+              <button
+                onClick={() => onMove(task.id, 'InProgress')}
+                className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-xl transition-colors duration-200"
+                title="Move to In Progress"
+              >
+                <FaTasks className="w-5 h-5" />
+              </button>
             )}
-            {column === 'ToDo' && (
-              <>
-                <button
-                  onClick={() => onMove(task.id, 'InProgress')}
-                  className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-xl transition-colors duration-200"
-                  title="Move to In Progress"
-                >
-                  <FaTasks className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => onMove(task.id, 'Cancelled')}
-                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors duration-200"
-                  title="Cancel Task"
-                >
-                  <FaBan className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => onEdit(task)}
-                  className="p-2 text-blue-600 hover:bg-blue-100 rounded-xl transition-colors duration-200"
-                  title="Edit Task"
-                >
-                  <FaEdit className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => onDelete(task.id, column)}
-                  className={`p-2 text-red-600 hover:bg-red-100 rounded-xl transition-colors duration-200 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  disabled={!canDelete}
-                  title={!canDelete ? 'Cannot delete: Opportunity is not won or lost' : 'Delete Task'}
-                >
-                  <FaTrash className="w-5 h-5" />
-                </button>
-              </>
+            {(column === 'ToDo' || column === 'InProgress') && allowedActions.allowedMoves.includes('Cancelled') && (
+              <button
+                onClick={() => onMove(task.id, 'Cancelled')}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors duration-200"
+                title="Cancel Task"
+              >
+                <FaBan className="w-5 h-5" />
+              </button>
             )}
-            {(column === 'Done' || column === 'Cancelled') && (
+            {column === 'InProgress' && allowedActions.allowedMoves.includes('Done') && (
+              <button
+                onClick={() => onMove(task.id, 'Done')}
+                className="p-2 text-green-600 hover:bg-green-100 rounded-xl transition-colors duration-200"
+                title="Mark as Done"
+              >
+                <FaCheck className="w-5 h-5" />
+              </button>
+            )}
+            {column === 'ToDo' && allowedActions.allowedMoves.includes('Done') && (
+              <button
+                onClick={() => onMove(task.id, 'Done')}
+                className="p-2 text-green-600 hover:bg-green-100 rounded-xl transition-colors duration-200"
+                title="Mark as Done"
+              >
+                <FaCheck className="w-5 h-5" />
+              </button>
+            )}
+            {column === 'Done' && allowedActions.allowedMoves.includes('Cancelled') && (
+              <button
+                onClick={() => onMove(task.id, 'Cancelled')}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors duration-200"
+                title="Cancel Task"
+              >
+                <FaBan className="w-5 h-5" />
+              </button>
+            )}
+            {(column === 'ToDo' && allowedActions.canEdit) || (column === 'InProgress' && allowedActions.canEditAssignedTo && isAdmin) ? (
+              <button
+                onClick={() => onEdit(task)}
+                className="p-2 text-blue-600 hover:bg-blue-100 rounded-xl transition-colors duration-200"
+                title="Edit Task"
+              >
+                <FaEdit className="w-5 h-5" />
+              </button>
+            ) : null}
+            {allowedActions.canDelete && (
               <button
                 onClick={() => onDelete(task.id, column)}
-                className={`p-2 text-red-600 hover:bg-red-100 rounded-xl transition-colors duration-200 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
-                disabled={!canDelete}
-                title={!canDelete ? 'Cannot delete: Opportunity is not won or lost' : 'Delete Task'}
+                className="p-2 text-red-600 hover:bg-red-100 rounded-xl transition-colors duration-200"
+                title="Delete Task"
               >
                 <FaTrash className="w-5 h-5" />
               </button>
@@ -511,6 +568,7 @@ const TaskCard = ({ task, onMove, onEdit, onDelete, column, isHighlighted, users
         deleteLoading={false}
         users={users}
         opportunities={opportunities}
+        currentUser={currentUser}
       />
     </>
   );
@@ -549,7 +607,7 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
       return false;
     }
     const selectedOpportunity = opportunities.find(op => op.id === newTask.opportunityId);
-    if (selectedOpportunity?.status && ["CLOSED", "WON", "LOST"].includes(selectedOpportunity.status.toUpperCase())) {
+    if (selectedOpportunity?.status && ["WON", "LOST"].includes(selectedOpportunity.status.toUpperCase())) {
       setErrorMessage("Cannot create task: Opportunity is closed, won, or lost.");
       return false;
     }
@@ -660,7 +718,7 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
                   >
                     {currentUser.profilePhotoUrl ? (
                       <img
-                        src={`http://localhost:8080${currentUser.profilePhotoUrl}`}
+                        src={getSafeImageUrl(currentUser.profilePhotoUrl)}
                         alt={currentUser.username}
                         className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover"
                       />
@@ -687,7 +745,7 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
                             >
                               {user.profilePhotoUrl ? (
                                 <img
-                                  src={`http://localhost:8080${user.profilePhotoUrl}`}
+                                  src={getSafeImageUrl(user.profilePhotoUrl)}
                                   alt={user.username}
                                   className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
                                 />
@@ -736,7 +794,7 @@ const AddTaskModal = ({ show, onClose, onSubmit, newTask, setNewTask, users = []
                             >
                               {user.profilePhotoUrl ? (
                                 <img
-                                  src={`http://localhost:8080${user.profilePhotoUrl}`}
+                                  src={getSafeImageUrl(user.profilePhotoUrl)}
                                   alt={user.username}
                                   className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
                                 />
@@ -864,6 +922,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
 
   const isRegularUser = currentUser?.role === "User";
   const isAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
+  const isTaskInProgress = editTask.statutTask === 'InProgress';
 
   return (
     <div
@@ -900,6 +959,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               placeholder="Enter task title"
               required
+              disabled={isTaskInProgress}
             />
           </div>
           <div className="space-y-1">
@@ -912,6 +972,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
                 min={minDate}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pl-10"
                 required
+                disabled={isTaskInProgress}
               />
               <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             </div>
@@ -923,6 +984,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
               onChange={(e) => setEditTask({ ...editTask, priority: e.target.value })}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               required
+              disabled={isTaskInProgress}
             >
               <option value="HIGH">High</option>
               <option value="MEDIUM">Medium</option>
@@ -936,6 +998,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
               onChange={(e) => setEditTask({ ...editTask, typeTask: e.target.value })}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               required
+              disabled={isTaskInProgress}
             >
               <option value="CALL">Call</option>
               <option value="EMAIL">Email</option>
@@ -956,7 +1019,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
                   >
                     {currentUser.profilePhotoUrl ? (
                       <img
-                        src={`http://localhost:8080${currentUser.profilePhotoUrl}`}
+                        src={getSafeImageUrl(currentUser.profilePhotoUrl)}
                         alt={currentUser.username}
                         className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover"
                       />
@@ -983,7 +1046,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
                             >
                               {user.profilePhotoUrl ? (
                                 <img
-                                  src={`http://localhost:8080${user.profilePhotoUrl}`}
+                                  src={getSafeImageUrl(user.profilePhotoUrl)}
                                   alt={user.username}
                                   className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
                                 />
@@ -1032,7 +1095,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
                             >
                               {user.profilePhotoUrl ? (
                                 <img
-                                  src={`http://localhost:8080${user.profilePhotoUrl}`}
+                                  src={getSafeImageUrl(user.profilePhotoUrl)}
                                   alt={user.username}
                                   className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
                                 />
@@ -1063,7 +1126,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
               onChange={(e) => setEditTask({ ...editTask, opportunityId: e.target.value })}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               required
-              disabled={editTask.statutTask === 'InProgress'}
+              disabled={isTaskInProgress}
             >
               <option value="">Select an opportunity</option>
               {opportunities.map(opportunity => (
@@ -1081,6 +1144,7 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 h-32"
               placeholder="Describe the task here..."
               required
+              disabled={isTaskInProgress}
             />
           </div>
           <div className="md:col-span-2 flex justify-end space-x-4">
@@ -1107,66 +1171,9 @@ const EditTaskModal = ({ show, onClose, onSubmit, editTask, setEditTask, users =
   );
 };
 
-// Helper function to get priority colors
-const getPriorityColor = (priority) => {
-  switch (priority) {
-    case 'HIGH': return 'bg-gradient-to-r from-red-500 to-red-600 text-white';
-    case 'MEDIUM': return 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white';
-    case 'LOW': return 'bg-gradient-to-r from-green-500 to-green-600 text-white';
-    default: return 'bg-gradient-to-r from-gray-500 to-gray-600 text-white';
-  }
-};
-
-const getPriorityBorderColor = (priority) => {
-  switch (priority) {
-    case 'HIGH': return 'border-red-500';
-    case 'MEDIUM': return 'border-yellow-500';
-    case 'LOW': return 'border-green-500';
-    default: return 'border-gray-500';
-  }
-};
-
-const getInitials = (name = '') => {
-  if (!name) return '??';
-  const names = name.split(' ');
-  return names.map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
-};
-
-const getColor = () => '#b0b0b0';
-
-// Utility to sanitize and validate image URLs
-const getSafeImageUrl = (url) => {
-  if (!url || typeof url !== 'string') return null;
-  // Avoid double prefixing if URL is already absolute
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  // Ensure URL starts with a slash
-  const cleanUrl = url.startsWith('/') ? url : `/${url}`;
-  return `http://localhost:8080${cleanUrl}`;
-};
-
 // Archived Tasks Modal Component
 const ArchivedTasksModal = ({ show, onClose, groupedTasks, loading, users = [] }) => {
   const [expandedOpportunities, setExpandedOpportunities] = useState({});
-
-  // Debug task data
-  useEffect(() => {
-    if (groupedTasks) {
-      console.log('Grouped Tasks:', groupedTasks);
-      Object.values(groupedTasks).forEach(({ tasks }) => {
-        tasks.forEach(task => {
-          const assignedUser = users.find(user => user.id === task.assignedUserId);
-          console.log(`Task ${task.id}:`, {
-            companyPhotoUrl: task.companyPhotoUrl,
-            contactPhotoUrl: task.contactPhotoUrl,
-            profilePhotoUrl: task.assignedUserProfilePhotoUrl,
-            assignedUserId: task.assignedUserId,
-            assignedUserUsername: task.assignedUserUsername,
-            completedAt: task.completedAt
-          });
-        });
-      });
-    }
-  }, [groupedTasks, users]);
 
   if (!show) return null;
 
@@ -1175,49 +1182,6 @@ const ArchivedTasksModal = ({ show, onClose, groupedTasks, loading, users = [] }
       ...prev,
       [oppId]: !prev[oppId]
     }));
-  };
-
-  const getPriorityBorderColor = (priority) => {
-    switch (priority) {
-      case 'HIGH': return 'border-red-500';
-      case 'MEDIUM': return 'border-yellow-500';
-      case 'LOW': return 'border-green-500';
-      default: return 'border-gray-500';
-    }
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'HIGH': return 'bg-gradient-to-r from-red-500 to-red-600 text-white';
-      case 'MEDIUM': return 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white';
-      case 'LOW': return 'bg-gradient-to-r from-green-500 to-green-600 text-white';
-      default: return 'bg-gradient-to-r from-gray-500 to-gray-600 text-white';
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'ToDo': return 'bg-blue-200';
-      case 'InProgress': return 'bg-yellow-50';
-      case 'Done': return 'bg-green-200';
-      case 'Cancelled': return 'bg-gray-200';
-      default: return 'bg-gray-500';
-    }
-  };
-
-  const getInitials = (name = '') => {
-    if (!name) return '??';
-    const names = name.split(' ');
-    return names.map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
-  };
-
-  const getColor = () => '#b0b0b0';
-
-  const getSafeImageUrl = (url) => {
-    if (!url || typeof url !== 'string') return null;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
-    return `http://localhost:8080${cleanUrl}`;
   };
 
   return (
@@ -1337,11 +1301,6 @@ const ArchivedTasksModal = ({ show, onClose, groupedTasks, loading, users = [] }
                                     src={getSafeImageUrl(task.assignedUserProfilePhotoUrl)}
                                     alt={task.assignedUserUsername || 'Unassigned'}
                                     className="w-6 h-6 rounded-full shadow-md object-cover"
-                                    onError={(e) => {
-                                      console.error(`Failed to load assigned user image for task ${task.id}:`, e);
-                                      e.target.style.display = 'none';
-                                      e.target.nextSibling.style.display = 'flex';
-                                    }}
                                   />
                                 ) : (
                                   getInitials(task.assignedUserUsername || 'Unassigned')
@@ -1368,11 +1327,6 @@ const ArchivedTasksModal = ({ show, onClose, groupedTasks, loading, users = [] }
                                     src={getSafeImageUrl(task.companyPhotoUrl)}
                                     alt={task.companyName || 'Company'}
                                     className="w-6 h-6 rounded-full shadow-md object-cover"
-                                    onError={(e) => {
-                                      console.error(`Failed to load company image for task ${task.id}:`, e);
-                                      e.target.style.display = 'none';
-                                      e.target.nextSibling.style.display = 'flex';
-                                    }}
                                   />
                                 ) : (
                                   <div
@@ -1395,11 +1349,6 @@ const ArchivedTasksModal = ({ show, onClose, groupedTasks, loading, users = [] }
                                         src={getSafeImageUrl(task.contactPhotoUrl)}
                                         alt={task.contactName}
                                         className="w-6 h-6 rounded-full shadow-md object-cover"
-                                        onError={(e) => {
-                                          console.error(`Failed to load contact image for task ${task.id}:`, e);
-                                          e.target.style.display = 'none';
-                                          e.target.nextSibling.style.display = 'flex';
-                                        }}
                                       />
                                     ) : (
                                       <div
@@ -1512,7 +1461,7 @@ const Tasks = () => {
   });
 
   const { data: archivedTasks, isLoading: archivedLoading, error: archivedError } = useQuery({
-    queryKey: ['archivedTasks', currentUser?.id], // Add currentUser.id to queryKey to refetch when user changes
+    queryKey: ['archivedTasks', currentUser?.id],
     queryFn: async () => {
       if (!currentUser?.id) {
         throw new Error('User not authenticated');
@@ -1521,11 +1470,11 @@ const Tasks = () => {
       params.append('archived', 'true');
       params.append('page', '0');
       params.append('size', '1000');
-      params.append('assignedUserId', currentUser.id); // Filter by current user's ID
+      params.append('assignedUserId', currentUser.id);
       const response = await api.get(`/tasks/filter?${params.toString()}`);
       return response.data.content;
     },
-    enabled: showArchivedTasksModal && !!currentUser?.id, // Only fetch when modal is open and user is authenticated
+    enabled: showArchivedTasksModal && !!currentUser?.id,
     onError: (err) => {
       setMessage(`Failed to load archived tasks: ${err.response?.data?.message || err.message}`);
       setMessageType('error');
@@ -1623,7 +1572,6 @@ const Tasks = () => {
   // Group archived tasks by opportunity
   const groupedArchivedTasks = useMemo(() => {
     if (!archivedTasks || !currentUser?.id) return {};
-    // Double-check that only the current user's tasks are included
     const filteredTasks = archivedTasks.filter(task => task.assignedUserId === currentUser.id);
     return filteredTasks.reduce((acc, task) => {
       const oppId = task.opportunityId;
@@ -1708,8 +1656,9 @@ const Tasks = () => {
   const handleMoveTask = (taskId, newStatus) => {
     const task = Object.values(tasks).flat().find(t => t.id === taskId);
     const opportunity = opportunities?.find(op => op.id === task.opportunityId);
-    if (opportunity?.status && ["CLOSED", "WON", "LOST"].includes(opportunity.status.toUpperCase())) {
-      setMessage('Cannot move task: Opportunity is closed, won, or lost.');
+    const allowedActions = getAllowedActions(task.statutTask, opportunity?.status);
+    if (!allowedActions.allowedMoves.includes(newStatus)) {
+      setMessage('Cannot move task: Action not allowed based on current status.');
       setMessageType('error');
       return;
     }
@@ -1719,9 +1668,9 @@ const Tasks = () => {
   const handleDeleteTask = (taskId, column) => {
     const task = Object.values(tasks).flat().find(t => t.id === taskId);
     const opportunity = opportunities?.find(op => op.id === task.opportunityId);
-    if ((task.statutTask === 'Done' || task.statutTask === 'Cancelled') && 
-        opportunity?.status && !["WON", "LOST","IN_PROGRESS"].includes(opportunity.status.toUpperCase())) {
-      setMessage('Cannot delete task: Opportunity is not won or lost.');
+    const allowedActions = getAllowedActions(task.statutTask, opportunity?.status);
+    if (!allowedActions.canDelete) {
+      setMessage('Cannot delete task: Not allowed based on current status.');
       setMessageType('error');
       return;
     }
@@ -1731,15 +1680,6 @@ const Tasks = () => {
 
   const confirmDeleteTask = () => {
     if (!taskToDelete) return;
-    const task = Object.values(tasks).flat().find(t => t.id === taskToDelete.id);
-    const opportunity = opportunities?.find(op => op.id === task.opportunityId);
-    if (opportunity?.status && ["IN_PROGRESS", "WON", "LOST"].includes(opportunity.status.toUpperCase())) {
-      setMessage('Cannot delete task: Opportunity is closed, won, or lost.');
-      setMessageType('error');
-      setShowDeleteModal(false);
-      setTaskToDelete(null);
-      return;
-    }
     deleteTaskMutation.mutate(taskToDelete.id);
   };
 
@@ -1754,8 +1694,10 @@ const Tasks = () => {
       minute: '2-digit'
     }).replace(' ', 'T');
     const opportunity = opportunities?.find(op => op.id === task.opportunityId);
-    if (opportunity?.status && ["WON", "LOST"].includes(opportunity.status.toUpperCase())) {
-      setMessage('Cannot edit task: Opportunity is closed');
+    const allowedActions = getAllowedActions(task.statutTask, opportunity?.status);
+    const isAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
+    if (!(allowedActions.canEdit || (allowedActions.canEditAssignedTo && isAdmin))) {
+      setMessage('Cannot edit task: Not allowed based on current status.');
       setMessageType('error');
       return;
     }
@@ -1774,7 +1716,7 @@ const Tasks = () => {
   };
 
   const filteredTasks = (tasksList) => {
-    let filtered = tasksList.filter(task => task.archived === false); // Explicitly include only non-archived tasks
+    let filtered = tasksList.filter(task => task.archived === false);
     if (filter !== 'all') {
       filtered = filtered.filter(task => task.priority.toLowerCase() === filter);
     }
@@ -1954,6 +1896,7 @@ const Tasks = () => {
                       isHighlighted={task.id.toString() === highlightedTaskId}
                       users={users || []}
                       opportunities={opportunities || []}
+                      currentUser={currentUser}
                     />
                   ))
                 )}

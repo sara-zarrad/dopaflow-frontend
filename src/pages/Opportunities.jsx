@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  FaPlus, FaEdit, FaTrash, FaChartLine, FaSearch, FaFilter, FaTasks,FaExclamationCircle, FaArrowUp, FaArrowDown, FaArrowLeft,FaTimes, FaSpinner, FaExpand, FaSortUp, FaSortDown, FaUndo, FaCheck,
-  FaTag, FaUser, FaList, FaChartBar, FaCalendarAlt
+  FaPlus, FaEdit, FaTrash, FaChartLine, FaSearch, FaFilter, FaTasks, FaExclamationCircle, FaArrowUp, FaArrowDown, FaBuilding,FaArrowLeft, FaTimes, FaSpinner, FaExpand, FaSortUp, FaSortDown, FaUndo, FaCheck,
+  FaTag, FaUser, FaList, FaChartBar, FaCalendarAlt, FaArchive
 } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
 import debounce from 'lodash/debounce';
 import api from '../utils/api';
 import LoadingIndicator from '../pages/LoadingIndicator';
-
 
 const Opportunities = () => {
   const location = useLocation();
@@ -19,8 +18,8 @@ const Opportunities = () => {
   const [stages, setStages] = useState([
     { id: 1, name: 'Prospection', opportunities: [], color: 'bg-blue-100' },
     { id: 2, name: 'Qualification', opportunities: [], color: 'bg-yellow-100' },
-    { id: 3, name: 'Négociation', opportunities: [], color: 'bg-orange-100' },
-    { id: 4, name: 'Clôturé', opportunities: [], color: 'bg-green-100' },
+    { id: 3, name: 'Negotiation', opportunities: [], color: 'bg-orange-100' },
+    { id: 4, name: 'Closed', opportunities: [], color: 'bg-green-100' },
   ]);
   const [allOpportunities, setAllOpportunities] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -59,7 +58,6 @@ const Opportunities = () => {
   const [tasksByOpportunity, setTasksByOpportunity] = useState({});
   const [loadingTasks, setLoadingTasks] = useState({});
   const [taskModalOpportunityId, setTaskModalOpportunityId] = useState(null);
-
   const formRef = useRef(null);
   const dropdownRef = useRef(null);
   const [cachedOpportunities, setCachedOpportunities] = useState(null);
@@ -67,8 +65,8 @@ const Opportunities = () => {
   const stageMapping = {
     PROSPECTION: 'Prospection',
     QUALIFICATION: 'Qualification',
-    NEGOTIATION: 'Négociation',
-    CLOSED: 'Clôturé',
+    NEGOTIATION: 'Negotiation',
+    CLOSED: 'Closed',
   };
 
   const priorityMapping = {
@@ -104,18 +102,18 @@ const Opportunities = () => {
 
   const [currentUser, setCurrentUser] = useState(null);
 
-useEffect(() => {
-  const fetchCurrentUser = async () => {
-    try {
-      const response = await api.get('/users/me'); // Adjust endpoint as needed
-      setCurrentUser(response.data);
-    } catch (error) {
-      console.error('Failed to fetch current user:', error);
-      setErrorMessage('Failed to fetch user data. Please try again.');
-    }
-  };
-  fetchCurrentUser();
-}, []);
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await api.get('/users/me');
+        setCurrentUser(response.data);
+      } catch (error) {
+        console.error('Failed to fetch current user:', error);
+        setErrorMessage('Failed to fetch user data. Please try again.');
+      }
+    };
+    fetchCurrentUser();
+  }, []);
 
   const MessageDisplay = ({ message, type, onClose }) => {
     if (!message) return null;
@@ -206,21 +204,20 @@ useEffect(() => {
         opportunities = opportunitiesRes.data.content || [];
         setCachedOpportunities(opportunities);
       }
-  
-      // Ensure owner data is included
+
       opportunities = opportunities.map(opp => ({
         ...opp,
-        owner: opp.owner || { id: null, username: 'None' } // Fallback for null owner
+        owner: opp.owner || { id: null, username: 'None' }
       }));
-  
+
       setAllOpportunities(opportunities);
       applyFilters(opportunities);
-  
+
       const contactsRes = await api.get('/contacts/search', { params: { query: '', size: 50 } });
       const initialContacts = contactsRes.data.content || [];
       setContacts(initialContacts);
       setFilteredContacts(initialContacts);
-  
+
       if (preselectedContactId) {
         const preselectedContact = await fetchContactById(preselectedContactId);
         if (preselectedContact) {
@@ -254,11 +251,23 @@ useEffect(() => {
   };
 
   const fetchTasks = async (opportunityId) => {
+    if (!currentUser) {
+      setErrorMessage('User data not loaded. Please try again later.');
+      return;
+    }
     if (tasksByOpportunity[opportunityId]) return;
     setLoadingTasks(prev => ({ ...prev, [opportunityId]: true }));
     try {
       const response = await api.get(`/tasks/opportunity/${opportunityId}`);
-      const tasks = response.data;
+      let tasks = response.data;
+
+      if (currentUser.role === 'User') {
+        const opportunity = allOpportunities.find(opp => opp.id === opportunityId);
+        if (opportunity.owner?.id !== currentUser.id) {
+          tasks = tasks.filter(task => Number(task.assignedUserId) === Number(currentUser.id));
+        }
+      }
+
       setTasksByOpportunity(prev => ({ ...prev, [opportunityId]: tasks }));
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
@@ -586,59 +595,81 @@ useEffect(() => {
     setExpandedOpportunityId(null);
   };
 
-  const TaskCard = ({ task }) => (
-    <div className="bg-white p-4 rounded-lg shadow-md border border-gray-200 space-y-2">
-      <div>
-        <span className="font-medium text-gray-700">Title: </span>
-        <span className="text-gray-800">{task.title}</span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700">Description: </span>
-        <span className="text-gray-600">{task.description || 'No description'}</span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700">Priority: </span>
-        <span className={`px-2 py-1 text-xs rounded-xl ${priorityColors[task.priority]}`}>
-          {priorityMapping[task.priority]}
-        </span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700">Type: </span>
-        <span className="text-gray-700">{task.typeTask}</span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700">Status: </span>
-        <span className="text-gray-700">{task.statutTask}</span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700">Archived: </span>
-        <span className={task.archived ? 'text-red-600' : 'text-green-600'}>{task.archived ? 'Yes' : 'No'}</span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700">Assigned to: </span>
-        <div className="inline-flex items-center space-x-2">
-          {task.assignedUserProfilePhotoUrl ? (
-            <img
-              src={`http://localhost:8080${task.assignedUserProfilePhotoUrl}`}
-              alt={task.assignedUserUsername}
-              className="h-6 w-6 rounded-full object-cover"
-            />
-          ) : (
-            <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">
-              {getInitials(task.assignedUserUsername)}
+  const TaskCard = ({ task }) => {
+    const priorityColors = {
+      HIGH: 'bg-red-500 text-white',
+      MEDIUM: 'bg-yellow-500 text-white',
+      LOW: 'bg-green-500 text-white',
+    };
+
+    const statusColors = {
+      ToDo: 'bg-blue-100 text-blue-800',
+      InProgress: 'bg-yellow-100 text-yellow-800',
+      Done: 'bg-green-100 text-green-800',
+      Cancelled: 'bg-gray-100 text-gray-800',
+    };
+
+    const getInitials = (name = '') => {
+      if (!name) return '??';
+      const names = name.split(' ');
+      return names.map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
+    };
+
+    return (
+      <div className="bg-white p-4 rounded-xl shadow-md border border-gray-200 hover:shadow-lg transition-all duration-200">
+        <div className="flex justify-between items-start mb-3">
+          <h4 className="text-lg font-semibold text-gray-800 truncate">{task.title}</h4>
+          <span className={`px-2 py-1 text-xs font-medium rounded-xl ${priorityColors[task.priority]}`}>
+            {task.priority}
+          </span>
+        </div>
+        <p className="text-sm text-gray-600 mb-3">{task.description || 'No description'}</p>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="flex items-center space-x-2">
+            <FaTag className="text-gray-400" />
+            <span className="text-sm text-gray-700">{task.typeTask}</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <FaTasks className="text-gray-400" />
+            <span className={`px-2 py-1 text-xs font-medium rounded-xl ${statusColors[task.statutTask]}`}>
+              {task.statutTask}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <FaArchive className="text-gray-400" />
+            <span className={task.archived ? 'text-red-600' : 'text-green-600'}>
+              {task.archived ? 'Archived' : 'Active'}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <FaUser className="text-gray-400" />
+            <div className="flex items-center space-x-2">
+              {task.assignedUserProfilePhotoUrl ? (
+                <img
+                  src={`http://localhost:8080${task.assignedUserProfilePhotoUrl}`}
+                  alt={task.assignedUserUsername}
+                  className="h-6 w-6 rounded-full object-cover"
+                />
+              ) : (
+                <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">
+                  {getInitials(task.assignedUserUsername)}
+                </div>
+              )}
+              <span className="text-sm text-gray-700">{task.assignedUserUsername || 'Unassigned'}</span>
             </div>
-          )}
-          <span className="text-gray-700">{task.assignedUserUsername || 'Unassigned'}</span>
+          </div>
         </div>
+        {task.completedAt && (
+          <div className="flex items-center space-x-2">
+            <FaCalendarAlt className="text-gray-400" />
+            <span className="text-sm text-gray-500">
+              Completed: {new Date(task.completedAt).toLocaleDateString()}
+            </span>
+          </div>
+        )}
       </div>
-      {task.completedAt && (
-        <div>
-          <span className="font-medium text-gray-700">Completed at: </span>
-          <span className="text-gray-500">{new Date(task.completedAt).toLocaleDateString()}</span>
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   const TaskModal = ({ isOpen, onClose, tasks, loading, opportunityTitle }) => {
     if (!isOpen) return null;
@@ -985,155 +1016,155 @@ useEffect(() => {
                       </tr>
                     </thead>
                     <tbody>
-  {isLoading ? (
-    <tr>
-      <td colSpan="10" className="px-4 py-6 text-center text-gray-500">
-        <FaSpinner className="animate-spin inline mr-2" /> Loading opportunities...
-      </td>
-    </tr>
-  ) : stage.opportunities.length === 0 ? (
-    <tr>
-      <td colSpan="10" className="px-4 py-6 text-center text-gray-500">No opportunities in this stage.</td>
-    </tr>
-  ) : (
-    stage.opportunities.map((opp) => (
-      <tr key={opp.id} className="border-b border-gray-200 hover:bg-gray-50 transition-all duration-200">
-        <td className="px-4 py-3 text-sm text-gray-800 break-words max-w-72">{opp.title}</td>
-        <td className="px-4 py-3 text-sm text-indigo-600 font-medium">{formatCurrency(opp.value)}</td>
-        <td className="px-4 py-3 text-sm text-gray-700">{opp.contact?.name || 'None'}</td>
-        <td className="px-4 py-3">
-          <span className={`px-2 py-1 text-xs rounded-xl shadow-sm ${priorityColors[opp.priority]}`}>
-            {priorityMapping[opp.priority]}
-          </span>
-        </td>
-        <td className="px-4 py-3">
-  {currentUser && opp.owner?.id === currentUser.id ? (
-    <div className="flex items-center space-x-2">
-      <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
-        <div className="bg-indigo-500 h-2 rounded-xl transition-all duration-500 shadow-md" style={{ width: `${opp.progress}%` }} />
-      </div>
-      <span className="text-sm text-indigo-600">{opp.progress}%</span>
-      <button
-        onClick={() => handleIncrementProgress(opp.id)}
-        className="p-1 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200"
-        disabled={opp.progress >= 100}
-      >
-        <FaArrowUp />
-      </button>
-      <button
-        onClick={() => handleDecrementProgress(opp.id)}
-        className="p-1 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200"
-        disabled={opp.progress <= 0}
-      >
-        <FaArrowDown />
-      </button>
-    </div>
-  ) : (
-    <div className="flex items-center space-x-2 relative group">
-      <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
-        <div className="bg-indigo-500 h-2 rounded-xl" style={{ width: `${opp.progress}%` }} />
-      </div>
-      <span className="text-sm text-indigo-600">{opp.progress}%</span>
-      <span className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-2 -mt-10 left-1/2 transform -translate-x-1/2">
-        You are not the owner of this opportunity.
-      </span>
-    </div>
-  )}
-</td>
-<td className="px-4 py-3">
-  {currentUser && opp.owner?.id === currentUser.id ? (
-    <select
-      value={opp.stage}
-      onChange={(e) => handleChangeStage(opp.id, e.target.value)}
-      className="p-1 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
-    >
-      {Object.keys(stageMapping).map((key) => (
-        <option key={key} value={key} className="text-gray-700 font-medium">{stageMapping[key]}</option>
-      ))}
-    </select>
-  ) : (
-    <span className="text-sm text-gray-700 relative group">
-      {stageMapping[opp.stage]}
-      <span className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-2 -mt-10 left-1/2 transform -translate-x-1/2">
-        You are not the owner of this opportunity.
-      </span>
-    </span>
-  )}
-</td>
-        <td className="px-4 py-3 text-sm text-gray-700">
-          {currentUser && opp.owner?.id === currentUser.id && opp.stage === 'CLOSED' ? (
-            <select
-              value={opp.status}
-              onChange={(e) => handleUpdateStatus(opp.id, e.target.value)}
-              className="p-1 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
-            >
-              <option value="WON">Won</option>
-              <option value="LOST">Lost</option>
-            </select>
-          ) : (
-            <span className={opp.status === 'WON' ? 'text-green-600' : opp.status === 'LOST' ? 'text-red-600' : 'text-yellow-500'}>
-              {opp.status}
-            </span>
-          )}
-        </td>
-        <td className="px-4 py-3 text-sm text-gray-700">
-          <div className="flex items-center space-x-2">
-            {opp.owner?.profilePhotoUrl ? (
-              <img
-                src={`http://localhost:8080${opp.owner.profilePhotoUrl}`}
-                alt={opp.owner.username || 'Owner'}
-                className="h-6 w-6 rounded-full object-cover"
-              />
-            ) : (
-              <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">
-                {getInitials(opp.owner?.username)}
-              </div>
-            )}
-            <span>{opp.owner?.username || 'None'}</span>
-          </div>
-        </td>
-        <td className="px-4 py-3">
-  <div className="flex space-x-2">
-    {currentUser && opp.owner?.id === currentUser.id ? (
-      <>
-        <button
-          onClick={() => handleEdit(opp)}
-          className="p-2 text-indigo-600 rounded-xl shadow-md hover:bg-indigo-100 transition-all duration-200"
-        >
-          <FaEdit />
-        </button>
-        <button
-          onClick={() => handleDelete(opp.id)}
-          className="p-2 text-red-600 rounded-xl shadow-md hover:bg-red-100 transition-all duration-200"
-        >
-          <FaTrash />
-        </button>
-      </>
-    ) : (
-      <span className="text-gray-500 text-sm italic relative group">
-        View only
-        <span className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-2 -mt-10 left-1/2 transform -translate-x-1/2">
-          You are not the owner of this opportunity.
-        </span>
-      </span>
-    )}
-  </div>
-</td>
-        <td className="px-4 py-3">
-          <button
-            onClick={() => {
-              if (!tasksByOpportunity[opp.id]) fetchTasks(opp.id);
-              setTaskModalOpportunityId(opp.id);
-            }}
-            className="p-2 text-gray-600 hover:text-gray-800"
-          >
-            <FaExpand />
-          </button>
-        </td>
-      </tr>
-    ))
-  )}
-</tbody>
+                      {isLoading ? (
+                        <tr>
+                          <td colSpan="10" className="px-4 py-6 text-center text-gray-500">
+                            <FaSpinner className="animate-spin inline mr-2" /> Loading opportunities...
+                          </td>
+                        </tr>
+                      ) : stage.opportunities.length === 0 ? (
+                        <tr>
+                          <td colSpan="10" className="px-4 py-6 text-center text-gray-500">No opportunities in this stage.</td>
+                        </tr>
+                      ) : (
+                        stage.opportunities.map((opp) => (
+                          <tr key={opp.id} className="border-b border-gray-200 hover:bg-gray-50 transition-all duration-200">
+                            <td className="px-4 py-3 text-sm text-gray-800 break-words max-w-72">{opp.title}</td>
+                            <td className="px-4 py-3 text-sm text-indigo-600 font-medium">{formatCurrency(opp.value)}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{opp.contact?.name || 'None'}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 text-xs rounded-xl shadow-sm ${priorityColors[opp.priority]}`}>
+                                {priorityMapping[opp.priority]}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {currentUser && (opp.owner?.id === currentUser.id || currentUser.role === 'SuperAdmin') ? (
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
+                                    <div className="bg-indigo-500 h-2 rounded-xl transition-all duration-500 shadow-md" style={{ width: `${opp.progress}%` }} />
+                                  </div>
+                                  <span className="text-sm text-indigo-600">{opp.progress}%</span>
+                                  <button
+                                    onClick={() => handleIncrementProgress(opp.id)}
+                                    className="p-1 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 transition-all duration-200"
+                                    disabled={opp.progress >= 100}
+                                  >
+                                    <FaArrowUp />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDecrementProgress(opp.id)}
+                                    className="p-1 bg-red-500 text-white rounded-xl shadow-md hover:bg-red-600 transition-all duration-200"
+                                    disabled={opp.progress <= 0}
+                                  >
+                                    <FaArrowDown />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center space-x-2 relative group">
+                                  <div className="w-24 bg-gray-200/50 rounded-xl h-2 shadow-inner">
+                                    <div className="bg-indigo-500 h-2 rounded-xl" style={{ width: `${opp.progress}%` }} />
+                                  </div>
+                                  <span className="text-sm text-indigo-600">{opp.progress}%</span>
+                                  <span className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-2 -mt-10 left-1/2 transform -translate-x-1/2">
+                                    You are not authorized to modify progress.
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {currentUser && (opp.owner?.id === currentUser.id || currentUser.role === 'SuperAdmin') ? (
+                                <select
+                                  value={opp.stage}
+                                  onChange={(e) => handleChangeStage(opp.id, e.target.value)}
+                                  className="p-1 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
+                                >
+                                  {Object.keys(stageMapping).map((key) => (
+                                    <option key={key} value={key} className="text-gray-700 font-medium">{stageMapping[key]}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-sm text-gray-700 relative group">
+                                  {stageMapping[opp.stage]}
+                                  <span className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-2 -mt-10 left-1/2 transform -translate-x-1/2">
+                                    You are not authorized to change stage.
+                                  </span>
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              {currentUser && (opp.owner?.id === currentUser.id || currentUser.role === 'SuperAdmin') && opp.stage === 'CLOSED' ? (
+                                <select
+                                  value={opp.status}
+                                  onChange={(e) => handleUpdateStatus(opp.id, e.target.value)}
+                                  className="p-1 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:bg-gray-200"
+                                >
+                                  <option value="WON">Won</option>
+                                  <option value="LOST">Lost</option>
+                                </select>
+                              ) : (
+                                <span className={opp.status === 'WON' ? 'text-green-600' : opp.status === 'LOST' ? 'text-red-600' : 'text-yellow-500'}>
+                                  {opp.status}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <div className="flex items-center space-x-2">
+                                {opp.owner?.profilePhotoUrl ? (
+                                  <img
+                                    src={`http://localhost:8080${opp.owner.profilePhotoUrl}`}
+                                    alt={opp.owner.username || 'Owner'}
+                                    className="h-6 w-6 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">
+                                    {getInitials(opp.owner?.username)}
+                                  </div>
+                                )}
+                                <span>{opp.owner?.username || 'None'}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex space-x-2">
+                                {currentUser && (opp.owner?.id === currentUser.id || currentUser.role === 'SuperAdmin') ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleEdit(opp)}
+                                      className="p-2 text-indigo-600 rounded-xl shadow-md hover:bg-indigo-100 transition-all duration-200"
+                                    >
+                                      <FaEdit />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDelete(opp.id)}
+                                      className="p-2 text-red-600 rounded-xl shadow-md hover:bg-red-100 transition-all duration-200"
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="relative group text-gray-500 text-sm italic">
+                                    View only
+                                    <span className="absolute hidden group-hover:block z-50 bg-gray-800 text-white text-xs rounded-md px-3 py-1 whitespace-nowrap -top-8 left-1/2 -translate-x-[75%] shadow-lg pointer-events-none">
+                                      You do not have permission to edit or delete this opportunity.
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => {
+                                  if (!tasksByOpportunity[opp.id]) fetchTasks(opp.id);
+                                  setTaskModalOpportunityId(opp.id);
+                                }}
+                                className="p-2 text-gray-600 hover:text-gray-800"
+                              >
+                                <FaExpand />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
                   </table>
                 </div>
               </div>
@@ -1141,7 +1172,7 @@ useEffect(() => {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 transition-all duration-500 animate-fadeIn">
+        <div className="grid grid=grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 transition-all duration-500 animate-fadeIn">
           {stages.map((stage) => (
             <div
               key={stage.id}
@@ -1191,7 +1222,7 @@ useEffect(() => {
                     <div className="flex items-center mb-3">
                       <span className="text-sm text-gray-700 font-semibold mr-2">Priority:</span>
                       <span
-                        className={`px-3 py-1 text-xs font-semibold rounded-xl shadow-sm ${priorityColors[opp.priority]}`}
+                        className={`px-3 py-1 text-xs font-semibold rounded-xl guarded-sm ${priorityColors[opp.priority]}`}
                       >
                         {priorityMapping[opp.priority]}
                       </span>
@@ -1308,214 +1339,215 @@ useEffect(() => {
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Title</label>
                 <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  placeholder="Enter opportunity title"
-                  required
-                />
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="w-full px-4 py-3 h-[72px] bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter opportunity title"
+                required
+              />
               </div>
 
               <div className="space-y-1 w-full">
-                <label className="block text-sm font-medium text-gray-700">Contact</label>
-                <div className="relative w-full">
-                  {isContactLoading ? (
-                    <div className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex justify-between items-center">
-                      <span>Loading contact...</span>
-                      <FaSpinner className="animate-spin text-gray-400" />
-                    </div>
-                  ) : formData.contactId ? (
-                    (() => {
-                      const selectedContact = contacts.find((contact) => contact.id === Number(formData.contactId));
-                      if (!selectedContact && preselectedContactId && preselectedContactName) {
-                        return (
-                          <div
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 cursor-pointer"
-                            onClick={() => setShowContactDropdown(!showContactDropdown)}
-                          >
-                            <div
-                              className="h-8 w-8 rounded-full flex items-center justify-center bg-gray-300 text-white text-xs font-bold flex-shrink-0"
-                            >
-                              {getInitials(preselectedContactName)}
-                            </div>
-                            <div className="flex flex-col flex-1 min-w-0">
-                              <span className="text-gray-900 font-medium break-words">{preselectedContactName}</span>
-                            </div>
-                            <svg
-                              className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${showContactDropdown ? 'rotate-180' : ''}`}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                          </div>
-                        );
-                      }
-                      if (!selectedContact && contactFetchFailed) {
-                        return (
-                          <div
-                            className="w-full px-4 py-3 bg-red-50 border border-red-200 rounded-lg shadow-sm text-red-700 flex justify-between items-center cursor-pointer"
-                            onClick={() => setShowContactDropdown(!showContactDropdown)}
-                          >
-                            <span>Failed to load contact</span>
-                            <svg
-                              className={`w-5 h-5 text-red-400 transition-transform duration-200 ${showContactDropdown ? 'rotate-180' : ''}`}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 24 24"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                          </div>
-                        );
-                      }
-                      if (!selectedContact) {
-                        return (
-                          <div
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex justify-between items-center cursor-pointer"
-                            onClick={() => setShowContactDropdown(!showContactDropdown)}
-                          >
-                            <span>Contact not found</span>
-                            <svg
-                              className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showContactDropdown ? 'rotate-180' : ''}`}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                          </div>
-                        );
-                      }
-                      return (
-                        <div
-                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 cursor-pointer"
-                          onClick={() => setShowContactDropdown(!showContactDropdown)}
-                        >
-                          {selectedContact.photoUrl ? (
-                            <img
-                              src={`http://localhost:8080${selectedContact.photoUrl}`}
-                              alt={selectedContact.name}
-                              className="h-8 w-8 rounded-full object-cover flex-shrink-0"
-                            />
-                          ) : (
-                            <div
-                              className="h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                              style={{ backgroundColor: getColor() }}
-                            >
-                              {getInitials(selectedContact.name)}
-                            </div>
-                          )}
-                          <div className="flex flex-col flex-1 min-w-0">
-                            <span className="text-gray-900 font-medium break-words">{selectedContact.name}</span>
-                            {selectedContact.company?.name && (
-                              <span className="text-xs text-gray-600 break-words">{selectedContact.company.name}</span>
-                            )}
-                          </div>
-                          <svg
-                            className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${showContactDropdown ? 'rotate-180' : ''}`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-                          </svg>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <div
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-400 flex justify-between items-center cursor-pointer"
-                      onClick={() => setShowContactDropdown(!showContactDropdown)}
-                    >
-                      <span>Select a contact</span>
-                      <svg
-                        className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showContactDropdown ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-                      </svg>
-                    </div>
-                  )}
-
-                  {showContactDropdown && (
-                    <div ref={dropdownRef} className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto min-w-[300px]">
-                      <div className="p-2 border-b border-gray-200">
-                        <div className="relative">
-                          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                          <input
-                            type="text"
-                            value={contactSearch}
-                            onChange={handleContactSearch}
-                            className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                            placeholder="Search contacts..."
-                            autoFocus
-                          />
-                        </div>
-                      </div>
-                      <div className="max-h-48 overflow-y-auto">
-                        <div
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-gray-500"
-                          onClick={() => {
-                            setFormData({ ...formData, contactId: null });
-                            setShowContactDropdown(false);
-                            setContactSearch('');
-                            setContactFetchFailed(false);
-                          }}
-                        >
-                          (None)
-                        </div>
-                        {filteredContacts.length > 0 ? (
-                          filteredContacts.map((contact) => (
-                            <div
-                              key={contact.id}
-                              className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center space-x-3"
-                              onClick={() => {
-                                setFormData({ ...formData, contactId: contact.id });
-                                setShowContactDropdown(false);
-                                setContactSearch('');
-                                setContactFetchFailed(false);
-                              }}
-                            >
-                              <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
-                                style={{ backgroundColor: contact.photoUrl ? "transparent" : getColor() }}
-                              >
-                                {contact.photoUrl ? (
-                                  <img
-                                    src={`http://localhost:8080${contact.photoUrl}`}
-                                    alt={contact.name}
-                                    className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
-                                  />
-                                ) : (
-                                  getInitials(contact.name)
-                                )}
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-gray-900 font-medium break-words">{contact.name}</span>
-                                {contact.company?.name && (
-                                  <span className="text-xs text-gray-600 break-words">{contact.company.name}</span>
-                                )}
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="px-4 py-2 text-gray-500">No contacts found</div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+    <label className="block text-sm font-medium text-gray-700">Contact</label>
+    <div className="relative w-full">
+      {isContactLoading ? (
+        <div className="w-full px-4 py-3 h-[72px] bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex justify-between items-center">
+          <span>Loading contact...</span>
+          <FaSpinner className="animate-spin text-gray-400" />
+        </div>
+      ) : formData.contactId ? (
+        (() => {
+          const selectedContact = contacts.find((contact) => contact.id === Number(formData.contactId));
+          if (!selectedContact && preselectedContactId && preselectedContactName) {
+            return (
+              <div
+                className="w-full px-4 py-3 h-[72px] bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 cursor-pointer"
+                onClick={() => setShowContactDropdown(!showContactDropdown)}
+              >
+                <div
+                  className="h-8 w-8 rounded-full flex items-center justify-center bg-gray-300 text-white text-xs font-bold flex-shrink-0"
+                >
+                  {getInitials(preselectedContactName)}
                 </div>
+                <div className="flex flex-col flex-1 min-w-0">
+                  <span className="text-gray-900 font-medium truncate">{preselectedContactName}</span>
+                  <span className="text-xs text-gray-600 truncate">No company</span>
+                </div>
+                <svg
+                  className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${showContactDropdown ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
               </div>
+            );
+          }
+          if (!selectedContact && contactFetchFailed) {
+            return (
+              <div
+                className="w-full px-4 py-3 h-[72px] bg-red-50 border border-red-200 rounded-lg shadow-sm text-red-700 flex justify-between items-center cursor-pointer"
+                onClick={() => setShowContactDropdown(!showContactDropdown)}
+              >
+                <span>Failed to load contact</span>
+                <svg
+                  className={`w-5 h-5 text-red-400 transition-transform duration-200 ${showContactDropdown ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+            );
+          }
+          if (!selectedContact) {
+            return (
+              <div
+                className="w-full px-4 py-3 h-[72px] bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex justify-between items-center cursor-pointer"
+                onClick={() => setShowContactDropdown(!showContactDropdown)}
+              >
+                <span>Contact not found</span>
+                <svg
+                  className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showContactDropdown ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+            );
+          }
+          return (
+            <div
+              className="w-full px-4 py-3 h-[72px] bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-700 flex items-center space-x-3 cursor-pointer"
+              onClick={() => setShowContactDropdown(!showContactDropdown)}
+            >
+              {selectedContact.photoUrl ? (
+                <img
+                  src={`http://localhost:8080${selectedContact.photoUrl}`}
+                  alt={selectedContact.name}
+                  className="h-8 w-8 rounded-full object-cover flex-shrink-0"
+                />
+              ) : (
+                <div
+                  className="h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                  style={{ backgroundColor: getColor() }}
+                >
+                  {getInitials(selectedContact.name)}
+                </div>
+              )}
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className="text-gray-900 font-medium truncate">{selectedContact.name}</span>
+                <span className="text-xs text-gray-600 truncate">
+                  {selectedContact.company?.name || 'No company'}
+                </span>
+              </div>
+              <svg
+                className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${showContactDropdown ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </div>
+          );
+        })()
+      ) : (
+        <div
+          className="w-full px-4 py-3 h-[72px] bg-gray-50 border border-gray-200 rounded-lg shadow-sm text-gray-400 flex justify-between items-center cursor-pointer"
+          onClick={() => setShowContactDropdown(!showContactDropdown)}
+        >
+          <span>Select a contact</span>
+          <svg
+            className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${showContactDropdown ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </div>
+      )}
+
+      {showContactDropdown && (
+        <div ref={dropdownRef} className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto min-w-[300px]">
+          <div className="p-2 border-b border-gray-200">
+            <div className="relative">
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={contactSearch}
+                onChange={handleContactSearch}
+                className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                placeholder="Search contacts..."
+                autoFocus
+              />
+            </div>
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            <div
+              className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-gray-500"
+              onClick={() => {
+                setFormData({ ...formData, contactId: null });
+                setShowContactDropdown(false);
+                setContactSearch('');
+                setContactFetchFailed(false);
+              }}
+            >
+              (None)
+            </div>
+            {filteredContacts.length > 0 ? (
+              filteredContacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center space-x-3"
+                  onClick={() => {
+                    setFormData({ ...formData, contactId: contact.id });
+                    setShowContactDropdown(false);
+                    setContactSearch('');
+                    setContactFetchFailed(false);
+                  }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-md overflow-hidden flex-shrink-0"
+                    style={{ backgroundColor: contact.photoUrl ? "transparent" : getColor() }}
+                  >
+                    {contact.photoUrl ? (
+                      <img
+                        src={`http://localhost:8080${contact.photoUrl}`}
+                        alt={contact.name}
+                        className="w-8 h-8 rounded-full shadow-md ring-2 ring-teal-300 object-cover transition-transform duration-300 hover:scale-105"
+                      />
+                    ) : (
+                      getInitials(contact.name)
+                    )}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-gray-900 font-medium truncate">{contact.name}</span>
+                    <span className="text-xs text-gray-600 truncate">
+                      {contact.company?.name || 'No company'}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="px-4 py-2 text-gray-500">No contacts found</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
 
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Value (TND)</label>
@@ -1635,40 +1667,40 @@ useEffect(() => {
         </div>
       )}
 
-{expandedOpportunityId && !isExpanded && (
-  <div
-    className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 ${expandedOpportunityId ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
-    onClick={() => setExpandedOpportunityId(null)}
-  >
-    <div
-      className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg transform transition-all duration-300 scale-95 animate-scaleIn"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <OpportunityDetails
-        opportunity={allOpportunities.find(opp => opp.id === expandedOpportunityId)}
-        tasks={tasksByOpportunity[expandedOpportunityId]}
-        loadingTasks={loadingTasks[expandedOpportunityId]}
-        onClose={() => setExpandedOpportunityId(null)}
-        onEdit={() => {
-          const opp = allOpportunities.find(opp => opp.id === expandedOpportunityId);
-          setFormData({ ...opp, contactId: opp.contact?.id || null });
-          setEditingOpportunityId(opp.id);
-          debouncedSetShowForm(true);
-          setExpandedOpportunityId(null);
-        }}
-        onDelete={() => {
-          handleDelete(expandedOpportunityId);
-          setExpandedOpportunityId(null);
-        }}
-        onChangeStage={(newStage) => handleChangeStage(expandedOpportunityId, newStage)}
-        onIncrementProgress={() => handleIncrementProgress(expandedOpportunityId)}
-        onDecrementProgress={() => handleDecrementProgress(expandedOpportunityId)}
-        onUpdateStatus={(newStatus) => handleUpdateStatus(expandedOpportunityId, newStatus)}
-        currentUser={currentUser} // Pass currentUser here
-      />
-    </div>
-  </div>
-)}
+      {expandedOpportunityId && !isExpanded && (
+        <div
+          className={`fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center transition-all duration-500 ${expandedOpportunityId ? 'opacity-100' : 'opacity-0 pointer-events-none'} z-50`}
+          onClick={() => setExpandedOpportunityId(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl p-0 w-full max-w-lg transform transition-all duration-300 scale-95 animate-scaleIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <OpportunityDetails
+              opportunity={allOpportunities.find(opp => opp.id === expandedOpportunityId)}
+              tasks={tasksByOpportunity[expandedOpportunityId]}
+              loadingTasks={loadingTasks[expandedOpportunityId]}
+              onClose={() => setExpandedOpportunityId(null)}
+              onEdit={() => {
+                const opp = allOpportunities.find(opp => opp.id === expandedOpportunityId);
+                setFormData({ ...opp, contactId: opp.contact?.id || null });
+                setEditingOpportunityId(opp.id);
+                debouncedSetShowForm(true);
+                setExpandedOpportunityId(null);
+              }}
+              onDelete={() => {
+                handleDelete(expandedOpportunityId);
+                setExpandedOpportunityId(null);
+              }}
+              onChangeStage={(newStage) => handleChangeStage(expandedOpportunityId, newStage)}
+              onIncrementProgress={() => handleIncrementProgress(expandedOpportunityId)}
+              onDecrementProgress={() => handleDecrementProgress(expandedOpportunityId)}
+              onUpdateStatus={(newStatus) => handleUpdateStatus(expandedOpportunityId, newStatus)}
+              currentUser={currentUser}
+            />
+          </div>
+        </div>
+      )}
 
       <TaskModal
         isOpen={!!taskModalOpportunityId}
@@ -1706,8 +1738,8 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
 
   if (!opportunity) return null;
 
-  // Check if the current user is the owner
   const isOwner = currentUser && opportunity.owner?.id === currentUser.id;
+  const isSuperAdmin = currentUser && currentUser.role === 'SuperAdmin';
 
   const getInitials = (name = '') => {
     if (!name) return '??';
@@ -1735,66 +1767,89 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
   const stageMapping = {
     PROSPECTION: 'Prospection',
     QUALIFICATION: 'Qualification',
-    NEGOTIATION: 'Négociation',
-    CLOSED: 'Clôturé',
+    NEGOTIATION: 'Negotiation',
+    CLOSED: 'Closed',
   };
 
-  const TaskCard = ({ task }) => (
-    <div className="bg-white p-3 rounded-lg shadow-md border border-gray-200 space-y-2">
-      <div>
-        <span className="font-medium text-gray-700 text-sm">Title: </span>
-        <span className="text-gray-800 text-sm">{task.title}</span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700 text-sm">Description: </span>
-        <span className="text-gray-600 text-sm">{task.description || 'No description'}</span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700 text-sm">Priority: </span>
-        <span className={`px-2 py-1 text-xs rounded-xl ${priorityColors[task.priority]}`}>
-          {priorityMapping[task.priority]}
-        </span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700 text-sm">Type: </span>
-        <span className="text-gray-700 text-sm">{task.typeTask}</span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700 text-sm">Status: </span>
-        <span className="text-gray-700 text-sm">{task.statutTask}</span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700 text-sm">Archived: </span>
-        <span className={task.archived ? 'text-red-600 text-sm' : 'text-green-600 text-sm'}>{task.archived ? 'Yes' : 'No'}</span>
-      </div>
-      <div>
-        <span className="font-medium text-gray-700 text-sm">Assigned to: </span>
-        <div className="inline-flex items-center space-x-2">
-          {task.assignedUserProfilePhotoUrl ? (
-            <img
-              src={`http://localhost:8080${task.assignedUserProfilePhotoUrl}`}
-              alt={task.assignedUserUsername}
-              className="h-5 w-5 rounded-full object-cover"
-            />
-          ) : (
-            <div className="h-5 w-5 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">
-              {getInitials(task.assignedUserUsername)}
+  // Fallback color generator if getColor is not defined
+  const getColor = () => '#b0b0b0'; 
+  const TaskCard = ({ task }) => {
+    const priorityColors = {
+      HIGH: 'bg-red-500 text-white',
+      MEDIUM: 'bg-yellow-500 text-white',
+      LOW: 'bg-green-500 text-white',
+    };
+  
+    const statusColors = {
+      ToDo: 'bg-blue-100 text-blue-800',
+      InProgress: 'bg-yellow-100 text-yellow-800',
+      Done: 'bg-green-100 text-green-800',
+      Cancelled: 'bg-gray-100 text-gray-800',
+    };
+  
+    const getInitials = (name = '') => {
+      if (!name) return '??';
+      const names = name.split(' ');
+      return names.map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
+    };
+  
+    return (
+      <div className="bg-white p-4 rounded-xl shadow-md border border-gray-200 hover:shadow-lg transition-all duration-200">
+        <div className="flex justify-between items-start mb-3">
+          <h4 className="text-lg font-semibold text-gray-800 truncate">{task.title}</h4>
+          <span className={`px-2 py-1 text-xs font-medium rounded-xl ${priorityColors[task.priority]}`}>
+            {task.priority}
+          </span>
+        </div>
+        <p className="text-sm text-gray-600 mb-3">{task.description || 'No description'}</p>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="flex items-center space-x-2">
+            <FaTag className="text-gray-400" />
+            <span className="text-sm text-gray-700">{task.typeTask}</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <FaTasks className="text-gray-400" />
+            <span className={`px-2 py-1 text-xs font-medium rounded-xl ${statusColors[task.statutTask]}`}>
+              {task.statutTask}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <FaArchive className="text-gray-400" />
+            <span className={task.archived ? 'text-red-600' : 'text-green-600'}>
+              {task.archived ? 'Archived' : 'Active'}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <FaUser className="text-gray-400" />
+            <div className="flex items-center space-x-2">
+              {task.assignedUserProfilePhotoUrl ? (
+                <img
+                  src={`http://localhost:8080${task.assignedUserProfilePhotoUrl}`}
+                  alt={task.assignedUserUsername}
+                  className="h-6 w-6 rounded-full object-cover"
+                />
+              ) : (
+                <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">
+                  {getInitials(task.assignedUserUsername)}
+                </div>
+              )}
+              <span className="text-sm text-gray-700">{task.assignedUserUsername || 'Unassigned'}</span>
             </div>
-          )}
-          <span className="text-gray-700 text-sm">{task.assignedUserUsername || 'Unassigned'}</span>
+          </div>
         </div>
+        {task.completedAt && (
+          <div className="flex items-center space-x-2">
+            <FaCalendarAlt className="text-gray-400" />
+            <span className="text-sm text-gray-500">
+              Completed: {new Date(task.completedAt).toLocaleDateString()}
+            </span>
+          </div>
+        )}
       </div>
-      {task.completedAt && (
-        <div>
-          <span className="font-medium text-gray-700 text-sm">Completed at: </span>
-          <span className="text-gray-500 text-sm">{new Date(task.completedAt).toLocaleDateString()}</span>
-        </div>
-      )}
-    </div>
-  );
-
+    );
+  };
   return (
-    <div className="relative w-full max-w-xl h-[600px] bg-white rounded-xl shadow-2xl p-12">
+    <div className="relative w-full max-w-xl h-[620px] bg-white rounded-xl shadow-2xl p-12">
       <div className="absolute inset-4 overflow-hidden">
         <div
           className={`absolute inset-0 transition-transform duration-500 ease-in-out ${
@@ -1833,11 +1888,48 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
             </div>
             <div className="flex items-center gap-3">
               <FaUser className="text-gray-400 text-base" />
-              <span>
+              <div className="flex items-center gap-2">
                 <span className="font-medium text-base">Contact: </span>
-                {opportunity.contact?.name || 'None'}
-              </span>
+                {opportunity.contact ? (
+                  <div className="flex items-center gap-2">
+                    {opportunity.contact.photoUrl ? (
+                      <img
+                        src={`http://localhost:8080${opportunity.contact.photoUrl}`}
+                        alt={opportunity.contact.name}
+                        className="h-8 w-8 rounded-full object-cover border border-gray-300 shadow-sm"
+                      />
+                    ) : (
+                      <div className="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-semibold" style={{ backgroundColor: getColor() }}>
+                        {getInitials(opportunity.contact.name)}
+                      </div>
+                    )}
+                    <span className="text-base">{opportunity.contact.name}</span>
+                  </div>
+                ) : (
+                  <span>None</span>
+                )}
+              </div>
             </div>
+            {opportunity.contact?.company && (
+              <div className="flex items-center gap-3">
+                <FaBuilding className="text-gray-400 text-base" />
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-base">Company: </span>
+                  {opportunity.contact.company.photoUrl ? (
+                    <img
+                      src={`http://localhost:8080${opportunity.contact.company.photoUrl}`}
+                      alt={opportunity.contact.company.name}
+                      className="h-8 w-8 rounded-full object-cover border border-gray-300 shadow-sm"
+                    />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-semibold" style={{ backgroundColor: getColor() }}>
+                      {getInitials(opportunity.contact.company.name)}
+                    </div>
+                  )}
+                  <span className="text-base">{opportunity.contact.company.name}</span>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <FaUser className="text-gray-400 text-base" />
               <div className="flex items-center gap-2">
@@ -1858,9 +1950,9 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
             </div>
             <div className="flex items-center gap-3">
               <FaList className="text-gray-400 text-base" />
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <span className="font-medium text-base">Stage: </span>
-                {isOwner ? (
+                {(isOwner || isSuperAdmin) ? (
                   <select
                     value={opportunity.stage}
                     onChange={(e) => onChangeStage(e.target.value)}
@@ -1888,7 +1980,7 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
                   />
                 </div>
                 <span className="text-sm text-indigo-600">{opportunity.progress}%</span>
-                {isOwner ? (
+                {(isOwner || isSuperAdmin) ? (
                   <>
                     <button
                       onClick={onIncrementProgress}
@@ -1906,13 +1998,13 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
                     </button>
                   </>
                 ) : null}
-              </div>
+               </div>
             </div>
             <div className="flex items-center gap-3">
               <FaCheck className="text-gray-400 text-base" />
               <div className="flex items-center gap-2">
                 <span className="font-medium text-base">Status: </span>
-                {isOwner && opportunity.stage === 'CLOSED' ? (
+                {(isOwner || isSuperAdmin) && opportunity.stage === 'CLOSED' ? (
                   <select
                     value={opportunity.status}
                     onChange={(e) => onUpdateStatus(e.target.value)}
@@ -1936,7 +2028,7 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
               </span>
             </div>
           </div>
-          <div className="mt-8 flex justify-between gap-4">
+          <div className="mt-10 flex justify-between gap-4">
             <button
               onClick={() => setShowTasks(true)}
               className="flex items-center px-5 py-2 bg-indigo-600 text-white rounded-xl shadow-md hover:bg-indigo-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-300/50"
@@ -1944,7 +2036,7 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
               <FaTasks className="mr-2 w-4 h-4" /> Show Tasks
             </button>
             <div className="flex gap-3">
-              {isOwner ? (
+              {(isOwner || isSuperAdmin) ? (
                 <>
                   <button
                     onClick={onEdit}
@@ -1960,7 +2052,9 @@ const OpportunityDetails = ({ opportunity, tasks, loadingTasks, onClose, onEdit,
                   </button>
                 </>
               ) : (
-                <span className="text-gray-500 text-sm italic"></span>
+                <span className="text-gray-500 text-sm italic mt-3 relative group w-full text-center">
+                  View only
+                </span>
               )}
             </div>
           </div>

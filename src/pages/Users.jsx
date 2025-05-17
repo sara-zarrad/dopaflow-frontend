@@ -276,7 +276,7 @@ const UserSidebar = ({ user, onClose, onEdit, onDelete, onStatusToggle, loading,
               <FaEdit className="mr-2 w-5 h-5" /> Edit Profile
             </button>
           )}
-          {(currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && (
+          {(currentUser.role === 'SuperAdmin' || currentUser.role === 'Admin') && user.role !== 'SuperAdmin'  &&(
             <button
               onClick={() => onStatusToggle(user.id)}
               className={`w-full py-3 rounded-xl text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 ${

@@ -50,7 +50,7 @@ const Tooltip = ({ label, isSidebarOpen, iconRef, children }) => {
   const [position, setPosition] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
-    if (show && !isSidebarOpen && iconRef.current) {
+    if (show && !isSidebarOpen && iconRef && iconRef.current) {
       const rect = iconRef.current.getBoundingClientRect();
       setPosition({ top: rect.top + rect.height / 2, left: 88 });
     }
@@ -132,7 +132,7 @@ const SearchBar = () => {
             onChange={e => handleSearch(e.target.value)}
             onBlur={() => setTimeout(() => setIsOpen(false), 200)}
             onFocus={() => searchQuery && setIsOpen(true)}
-            placeholder="Search CRM..."
+            placeholder="Search Dopaflow CRM..."
             className="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-200 rounded-full bg-white focus:ring-2 focus:ring-blue-500 shadow-md"
           />
         </div>

@@ -793,7 +793,7 @@ const handleSubmit = async (e) => {
   };
 
   const ownerOptions = [
-    { value: 'all', label: 'All Owners' },
+    { value: 'all', label: 'All Contacts' },
     { value: 'unassigned', label: 'Unassigned' },
     ...users.map(user => ({
       value: user.id,
@@ -1048,7 +1048,8 @@ const companyOptions = companies.map(company => ({
                 <span className="absolute top-[-8px] left-2 bg-white px-1 text-xs text-gray-600 font-semibold">End Date</span>
               </div>
             </div>
-            <div className="w-full sm:w-auto transition-all duration-200 hover:scale-105">
+            <div className="w-full sm:w-auto min-w-[220px] transition-all duration-200 hover:scale-105">
+
               <Select
                 options={ownerOptions}
                 value={
